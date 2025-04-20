@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maintenance Mode | HMN Helse Midtnorge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
+    rel="stylesheet"
+  />
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center font-['Inter']">
+  <div class="max-w-2xl w-full px-4">
+    <div class="bg-white rounded-xl shadow-lg p-8 md:p-12 text-center space-y-8 border-l-4 border-blue-600">
+      <!-- Animated Server Icon -->
+      <div class="animate-pulse">
+        <svg class="w-20 h-20 text-blue-600 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
+          />
+        </svg>
+      </div>
+
+      <div class="space-y-4">
+        <h1 class="text-3xl font-bold text-gray-800">
+          Scheduled System Maintenance
+        </h1>
+        <p class="text-gray-600 text-lg">
+          Beta test opens in 
+        </p>
+      </div>
+
+      <!-- Countdown Timer -->
+      <div class="bg-gray-50 p-6 rounded-lg">
+        <div class="flex justify-center space-x-4 font-mono">
+          <div class="text-center">
+            <div id="hours" class="text-4xl font-bold text-blue-600">--</div>
+            <div class="text-sm text-gray-500">hours</div>
+          </div>
+          <div class="text-4xl text-gray-400">:</div>
+          <div class="text-center">
+            <div id="minutes" class="text-4xl font-bold text-blue-600">--</div>
+            <div class="text-sm text-gray-500">minutes</div>
+          </div>
+          <div class="text-4xl text-gray-400">:</div>
+          <div class="text-center">
+            <div id="seconds" class="text-4xl font-bold text-blue-600">--</div>
+            <div class="text-sm text-gray-500">seconds</div>
+          </div>
+        </div>
+        <p class="text-sm text-gray-500 mt-4">
+          Estimated completion time<br />
+          <span id="completion-time" class="font-medium">2025-04-15 12:00 CET</span>
+        </p>
+      </div>
+
+      <!-- Status Information -->
+      <div class="space-y-4 text-sm text-gray-600">
+        <div class="flex items-center justify-center space-x-2">
+          <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+          <span>Current Status: Prøve så hardt æ kanj å itj ødelegg nokka i mens xD</span>
+        </div>
+        <p class="italic">
+          "This is taking longer than my last coffee break"<br />
+          -  Full Stack Developer - Showzky 
+        </p>
+      </div>
+
+      <!-- Emergency Contact -->
+      <div class="pt-6 border-t border-gray-100">
+        <p class="text-sm text-gray-600">
+          Need immediate assistance?<br />
+          Contact our support team at
+          <a href="mailto:support@hmn.no" class="text-blue-600 hover:underline">skullja hatt en email hær men det e itj sotte opp enda xD</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==================================================================
+    // CUSTOMIZE THESE VALUES
+    // Set the target date to April 15, 2025 at 12:00 CET.
+    // If you have a timezone offset, adjust accordingly (e.g., +01:00 for CET).
+    const targetDate = new Date('2025-04-15T12:00:00+01:00');
+    const completionTimeString = '2025-04-15 12:00 CET';
+    // ==================================================================
+
+    // DOM Elements
+    const hoursElement = document.getElementById('hours');
+    const minutesElement = document.getElementById('minutes');
+    const secondsElement = document.getElementById('seconds');
+    const completionTimeElement = document.getElementById('completion-time');
+
+    // Set completion time display
+    completionTimeElement.textContent = completionTimeString;
+
+    function updateTimer() {
+      const now = new Date().getTime();
+      const distance = targetDate.getTime() - now;
+
+      if (distance < 0) {
+        // If the target date is reached, show "00"
+        hoursElement.textContent = '00';
+        minutesElement.textContent = '00';
+        secondsElement.textContent = '00';
+        clearInterval(timerInterval);
+        return;
+      }
+
+      const hours = Math.floor(distance / (1000 * 60 * 60));
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+      hoursElement.textContent = String(hours).padStart(2, '0');
+      minutesElement.textContent = String(minutes).padStart(2, '0');
+      secondsElement.textContent = String(seconds).padStart(2, '0');
+    }
+
+    // Call updateTimer immediately and update every second.
+    updateTimer();
+    const timerInterval = setInterval(updateTimer, 1000);
+  </script>
+</body>
+</html>
