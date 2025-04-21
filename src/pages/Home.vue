@@ -16,7 +16,7 @@
             <div class="timeline-emoji">🎉</div>
             <div class="timeline-text">
               <h3>Født i kaos</h3>
-              <p>"Vi møttes faktisk først i 2024 alle sammen face to face" - Thomas, probably</p>
+              <p>"vi liker kake med sjokkolade alle sammen face to face" - Thomas, probably</p>
             </div>
           </div>
   
