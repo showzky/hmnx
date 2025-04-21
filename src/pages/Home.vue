@@ -3,7 +3,7 @@
       <!-- Hero Section -->
       <div class="hero">
         <h1>HMN Mental Pasienter</h1>
-        <p class="slogan">OLIVERRRR</p>
+        <p class="slogan">Profesjonelle uansvarlige siden 2024</p>
       </div>
   
       <div class="hero">
