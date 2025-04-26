@@ -18,11 +18,23 @@ export const useAuthStore = defineStore('auth', {
           headers: { Authorization: `Bearer ${this.token}` }
         });
         // Update the store
-        this.fittePoints = res.data.fitte_points;
+        this.fittePoints = res.data.points;
+
       } catch (err) {
         console.error('Could not load Fitte Points:', err);
       }
     },
+    async updateFittePoints(points) {
+      try {
+        const res = await axios.post('/update-fitte-points', { points }, {
+          headers: { Authorization: `Bearer ${this.token}` }
+        });
+        this.fittePoints = res.data.points;  // Keep the store updated
+      } catch (err) {
+        console.error('Error updating Fitte Points:', err);
+      }
+    },
+    
     // Call this after a successful login API call
     login(user, token) {
       this.user = user;

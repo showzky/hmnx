@@ -1,8 +1,8 @@
 # -------------------------
 # Import Libraries and Modules
 # -------------------------
-#iport eventlet
-#ventlet.monkey_patch()
+import eventlet
+eventlet.monkey_patch()
 
 from dotenv import load_dotenv
 import os
@@ -480,7 +480,7 @@ def sso():
     )
     return redirect(redirect_url)
 
-
+# -------------------------
 
 
 
@@ -729,7 +729,7 @@ def get_current_user():
 @app.route('/dashboard')
 def dashboard():
     discord_user = session.get('discord_user')
-    if discord_user:
+    if (discord_user):
         return f"Hello, {discord_user['username']}! You are logged in with Discord."
     else:
         return "You are not logged in with discord."
@@ -2019,6 +2019,8 @@ def delete_role(role_id):
     db.session.commit()
     return jsonify({"msg": "Role deleted successfully"}), 200
 
+
+# GET fitte_points from User table
 @app.route('/api/get-fitte-points', methods=['GET'])
 @jwt_required()
 def get_fitte_points():
@@ -2026,34 +2028,26 @@ def get_fitte_points():
     user = User.query.get(user_id)
     if not user:
         return jsonify({"msg": "User not found"}), 404
-    return jsonify({"fitte_points": user.fitte_points}), 200
+    return jsonify({"points": user.fitte_points}), 200
 
-from datetime import datetime
+# POST update fitte_points in User table
 @app.route('/api/update-fitte-points', methods=['POST'])
 @jwt_required()
 def update_fitte_points():
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-
-    now = datetime.now(datetime.timezone.utc)
-    now = datetime.utcnow()
-    last_activity = Activity.query.filter_by(
-        user_id=user.id,
-        activity_type='fitte_points_update'
-    ).order_by(Activity.timestamp.desc()).first()
-
-    if last_activity and (now - last_activity.timestamp).total_seconds() < 5:
-        return jsonify({"msg": "You're clicking too fast, calm down 😅"}), 429
-
     data = request.get_json()
-    new_points = data.get("fitte_points")
+    new_points = data.get("points")
+
     if not isinstance(new_points, int):
-        return jsonify({"msg": "Invalid fitte_points value"}), 400
+        return jsonify({"msg": "Invalid points value"}), 400
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
 
     user.fitte_points = new_points
-    db.session.add(Activity(user_id=user.id, activity_type='fitte_points_update', timestamp=now))
     db.session.commit()
-    return jsonify({"msg": "Fitte Points updated", "fitte_points": user.fitte_points}), 200
+    return jsonify({"msg": "Fitte Points updated", "points": user.fitte_points}), 200
 
 @app.route('/api/playlist', methods=['GET'])
 def get_playlist():

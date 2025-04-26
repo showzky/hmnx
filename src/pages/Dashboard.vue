@@ -299,6 +299,7 @@ export default {
   },
   setup() {
     const auth = useAuthStore();
+    const fittePoints = computed(() => auth.fittePoints);
     const { socket } = useWebSocket();
     const router = useRouter();
     const route = useRoute();
@@ -384,10 +385,7 @@ export default {
       }
 
       getKrenkeLevelFromBackend();
-      const saved = localStorage.getItem('fittePoints');
-      if (saved !== null) {
-        fittePoints.value = parseInt(saved, 10);
-      }
+      await auth.fetchFittePoints();
 
       fetchWeeklyActivity();
       trackDashboardVisit();
@@ -404,7 +402,11 @@ export default {
     const activeNav = ref('experiments');
     const userLevel = ref(42);
     const krenkeLevel = ref(2);
-    const fittePoints = ref(0);
+    
+
+
+
+
     const krenkeFilled = ref(false);
     const neuroConnections = ref('2.4K');
     const labActivity = ref(0);
@@ -425,10 +427,10 @@ export default {
 
     const drainInterval = setInterval(() => {
       if (krenkeLevel.value > 0){ 
-        krenkeLevel.value = Math.max(0, krenkeLevel.value -5);
+        krenkeLevel.value = Math.max(0, krenkeLevel.value -15); // Change later ( only for testing)
         updateKrenkeLevelOnBackend();
       }
-    }, 30000); // 30 seconds interval for draining krenke level 
+    }, 10000); // 30 seconds interval for draining krenke level 
 
     onBeforeUnmount(() => clearInterval(drainInterval));
 
@@ -479,17 +481,16 @@ export default {
     }
 
     watch(krenkeLevel, updateFluidFill);
-    watch(fittePoints, val => localStorage.setItem('fittePoints', val));
 
     async function adjustKrenkeLevel() {
       await getKrenkeLevelFromBackend();
       const current = krenkeLevel.value;
       if (current < 80 && !krenkeFilled.value) {
         krenkeLevel.value = 100;
-        fittePoints.value += 10;
+        auth.fittePoints += 10;
         krenkeFilled.value = true;
         await updateKrenkeLevelOnBackend();
-        await updateFittePointsOnBackend?.(); // Optional chaining if needed
+        await auth.updateFittePoints(auth.fittePoints);  // Optional chaining if needed
         showSnack('+10 Fitte Points! You have successfully krenket.', 'success');
       } else {
         showSnack('Krenke level too high or already filled — no points awarded!', 'info');
