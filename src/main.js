@@ -3,8 +3,7 @@ import App from './App.vue';
 import router from './router';
 import './assets/style.css/style.css';  // Import global styles
 import './assets/badges.css'; // Import global badge styles
-import 'swiper/css';
-import 'swiper/css/effect-coverflow';
+import 'swiper/swiper-bundle.css';
 import '@fortawesome/fontawesome-free/css/all.css';
 import { createPinia } from 'pinia';
 import './components/admin/assets/admin.css';
