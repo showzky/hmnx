@@ -1,208 +1,144 @@
-<template>
+﻿<template>
   <section v-if="userRoles.includes('admin') || userRoles.includes('developer')">
-    <!-- Admin widgets row: displays widgets side by side -->
-    <div class="admin-widgets-row">
-      <div class="data-widget">
-        <h3>Update User Role</h3>
-        <form @submit.prevent="$emit('updateUserRole')">
+    <div class="sec-head mb24">
+      <div>
+        <div class="sec-title">Bruker<em>admin</em></div>
+        <div class="sec-subtitle">Administrer brukere, roller og achievements.</div>
+      </div>
+    </div>
+    <div class="g2 mb16">
+      <!-- Update User Role -->
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Oppdater brukerrolle</span></div>
+        <div class="panel-body">
           <div class="form-group">
-            <label for="user-select">Select User</label>
-            <select 
-              id="user-select" 
-              :value="userRoleUpdate.selectedUser"
+            <label class="form-label">Velg bruker</label>
+            <select class="form-select" :value="userRoleUpdate.selectedUser"
               @change="updateUserRoleUpdate('selectedUser', $event.target.value)">
-              <option value="" disabled>Select a user</option>
+              <option value="" disabled>Velg bruker</option>
               <option v-for="user in usersList" :key="user.id" :value="user.id">
-                {{ user.username ? user.username + ', ' + user.email : user.email }}
+                {{ user.username || user.email }}
               </option>
             </select>
           </div>
           <div class="form-group">
-            <label for="role-select">Select Role/Rank</label>
-            <select 
-              id="role-select" 
-              :value="userRoleUpdate.newRole"
+            <label class="form-label">Velg rolle</label>
+            <select class="form-select" :value="userRoleUpdate.newRole"
               @change="updateUserRoleUpdate('newRole', $event.target.value)">
-              <option value="" disabled>Select a role</option>
-              <option v-for="role in availableRoles" :key="role.id" :value="role.id">
-                {{ role.name }}
-              </option>
+              <option value="" disabled>Velg rolle</option>
+              <option v-for="role in availableRoles" :key="role.id" :value="role.id">{{ role.name }}</option>
             </select>
           </div>
-          <button type="submit" class="update-role-button">Update Role</button>
-        </form>
-        <div v-if="updateUserMessage" class="form-message" :class="{ success: updateUserSuccess, error: !updateUserSuccess }">
-          {{ updateUserMessage }}
-        </div>
-        <div v-if="selectedUserRoles && selectedUserRoles.length > 0" class="current-roles-container">
-          <h4>Current Roles:</h4>
-          <span v-for="role in selectedUserRoles" 
-                :key="role.id" 
-                class="role-badge" 
-                :class="role.name.toLowerCase()" 
-                :style="{ backgroundColor: role.badge_color }">
-            <i v-if="role.badge_icon" :class="role.badge_icon"></i>
-            {{ role.name }}
-          </span>
-        </div>
-        <div v-else-if="userRoleUpdate.selectedUser">
-          <p>No roles assigned to this user yet.</p>
+          <div v-if="selectedUserRoles.length" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center;">
+            <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;">Nåværende:</span>
+            <span v-for="role in selectedUserRoles" :key="role.id" class="badge b-cyan">{{ role.name }}</span>
+          </div>
+          <button class="btn btn-red btn-sm" @click="$emit('updateUserRole')">Oppdater rolle</button>
+          <div v-if="updateUserMessage" class="form-message" :class="{ success: updateUserSuccess, error: !updateUserSuccess }">{{ updateUserMessage }}</div>
         </div>
       </div>
-      <div class="data-widget">
-        <h3>Demote (Remove) User Roles</h3>
-        <form @submit.prevent="$emit('removeSelectedRoles')">
+      <!-- Remove User Roles -->
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Fjern brukerroller</span></div>
+        <div class="panel-body">
           <div class="form-group">
-            <label for="user-select-remove">Select User</label>
-            <select
-              id="user-select-remove"
-              :value="userRoleRemove.selectedUser"
-              @change="onUserRoleRemoveChange($event.target.value)"
-            >
-              <option value="" disabled>Select a user</option>
+            <label class="form-label">Velg bruker</label>
+            <select class="form-select" :value="userRoleRemove.selectedUser"
+              @change="onUserRoleRemoveChange($event.target.value)">
+              <option value="" disabled>Velg bruker</option>
               <option v-for="user in usersList" :key="user.id" :value="user.id">
-                {{ user.username ? user.username + ', ' + user.email : user.email }}
+                {{ user.username || user.email }}
               </option>
             </select>
           </div>
-          <div v-if="selectedUserRolesToRemove && selectedUserRolesToRemove.length > 0">
-            <label>Current Roles:</label>
-            <div class="checkbox-group-vertical">
-              <label
-                v-for="role in selectedUserRolesToRemove"
-                :key="role.id"
-                class="custom-checkbox"
-              >
-                <input
-                  type="checkbox"
-                  :value="role.id"
-                  :checked="rolesToRemove.includes(role.id)"
-                  @change="toggleRoleToRemove(role.id)"
-                />
-                {{ role.name }}
+          <div class="checkbox-group-vertical" v-if="selectedUserRolesToRemove.length">
+            <label v-for="role in selectedUserRolesToRemove" :key="role.id" class="custom-checkbox">
+              <input type="checkbox" :value="role.id" :checked="rolesToRemove.includes(role.id)"
+                @change="toggleRoleToRemove(role.id)" style="accent-color:var(--cyan);" />
+              <span class="badge b-muted">{{ role.name }}</span>
+            </label>
+          </div>
+          <div v-else-if="userRoleRemove.selectedUser" style="font-size:12px;color:var(--muted);margin-bottom:12px;">Ingen roller å fjerne.</div>
+          <button class="btn btn-danger btn-sm" @click="$emit('removeSelectedRoles')">Fjern valgte roller</button>
+          <div v-if="removeRoleMessage" class="form-message" :class="{ success: removeRoleSuccess, error: !removeRoleSuccess }">{{ removeRoleMessage }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="g2 mb16">
+      <!-- Create New Role -->
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Opprett ny rolle</span></div>
+        <div class="panel-body">
+          <div class="role-preview-wrap">
+            <span class="role-preview-label">Forhåndsvisning:</span>
+            <span class="badge" :style="{ background: newRole.badge_color || 'rgba(136,136,136,0.2)', color: '#fff' }">
+              <i v-if="newRole.badge_icon" :class="newRole.badge_icon"></i>
+              {{ newRole.name || 'Ny Rolle' }}
+            </span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rollenavn</label>
+            <input class="form-input" :value="newRole.name" @input="updateNewRole('name', $event.target.value)" placeholder="f.eks. Producer" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Badge-farge</label>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input type="color" :value="newRole.badge_color || '#5865f2'"
+                @input="updateNewRole('badge_color', $event.target.value)"
+                style="width:36px;height:36px;border:1px solid var(--border2);border-radius:6px;padding:2px;background:var(--s2);cursor:pointer;" />
+              <input class="form-input" :value="newRole.badge_color" @input="updateNewRole('badge_color', $event.target.value)" placeholder="#5865f2" style="max-width:120px;" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Badge-ikon (Font Awesome)</label>
+            <input class="form-input" :value="newRole.badge_icon" @input="updateNewRole('badge_icon', $event.target.value)" placeholder="fas fa-microphone" />
+          </div>
+          <button class="btn btn-red btn-sm" @click="$emit('createRole')">Opprett rolle</button>
+          <div v-if="createRoleMessage" class="form-message" :class="{ success: createRoleSuccess, error: !createRoleSuccess }">{{ createRoleMessage }}</div>
+        </div>
+      </div>
+      <!-- Existing Roles -->
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Eksisterende roller</span></div>
+        <div class="panel-body" style="padding:0;">
+          <div v-for="role in availableRoles" :key="role.id"
+            style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);">
+            <span class="badge" :style="{ background: role.badge_color ? role.badge_color + '22' : 'rgba(255,255,255,0.06)', color: role.badge_color || 'var(--text)', border: '1px solid ' + (role.badge_color || 'var(--border)') + '44' }">
+              <i v-if="role.badge_icon" :class="role.badge_icon"></i>
+              {{ role.name }}
+            </span>
+            <button class="btn btn-danger btn-sm" @click="$emit('deleteRole', role.id)">Slett</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- User Achievements -->
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">Administrer bruker-achievements</span></div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Velg bruker</label>
+            <select class="form-select" v-model="achvUserId" @change="fetchUserAchievements">
+              <option value="" disabled>Velg bruker</option>
+              <option v-for="user in usersList" :key="user.id" :value="user.id">{{ user.username || user.email }}</option>
+            </select>
+          </div>
+          <div>
+            <div class="checkbox-group-vertical" v-if="userAchievements.length">
+              <label v-for="achv in userAchievements" :key="achv.achievement_id" class="custom-checkbox">
+                <input type="checkbox" :value="achv.achievement_id" v-model="selectedAchievements" style="accent-color:var(--cyan);" />
+                {{ achv.name || achv.title }}
+                <span v-if="achv.unlocked_at" style="font-size:10px;color:var(--muted);">({{ achv.unlocked_at.slice(0,10) }})</span>
               </label>
             </div>
-          </div>
-          <div v-else-if="userRoleRemove.selectedUser">
-            <p>No roles assigned to this user or none found.</p>
-          </div>
-          <button type="submit" class="update-role-button">Remove Selected Roles</button>
-        </form>
-        <div v-if="removeRoleMessage" class="form-message" :class="{ success: removeRoleSuccess, error: !removeRoleSuccess }">
-          {{ removeRoleMessage }}
-        </div>
-      </div>
-      <div class="data-widget create-role-widget">
-        <h3>Create New Role</h3>
-        <div class="form-group">
-          <label>Live Preview</label>
-          <span
-            class="role-badge"
-            :class="newRole.name.toLowerCase()"
-            :style="{ background: newRole.badge_color || '#888' }"
-          >
-            <i v-if="newRole.badge_icon" :class="newRole.badge_icon"></i>
-            {{ newRole.name || 'Role Name' }}
-          </span>
-        </div>
-        <form @submit.prevent="$emit('createRole')" class="create-role-form">
-          <div class="form-group">
-            <label for="role-name">Role Name</label>
-            <input 
-              id="role-name" 
-              :value="newRole.name" 
-              @input="updateNewRole('name', $event.target.value)" 
-              required 
-              placeholder="Role name (e.g. Producer)" />
-          </div>
-          <div class="form-group">
-            <label for="role-badge-icon">Badge Icon (Font Awesome class)</label>
-            <input 
-              id="role-badge-icon" 
-              :value="newRole.badge_icon" 
-              @input="updateNewRole('badge_icon', $event.target.value)" 
-              placeholder="e.g. fas fa-microphone" />
-          </div>
-          <div class="form-group">
-            <label for="role-badge-color">Badge Color</label>
-<input
-  id="role-badge-color"
-  :value="newRole.badge_color || '#888888'"
-  @input="updateNewRole('badge_color', $event.target.value)"
-  type="color"
-  style="width: 40px; height: 40px; padding: 0; border: none; vertical-align: middle;"
-/>
-            <input
-              :value="newRole.badge_color"
-              @input="updateNewRole('badge_color', $event.target.value)"
-              placeholder="#43b581 or gradient"
-              style="margin-left: 0.5rem; width: 120px;"
-            />
-          </div>
-          <button type="submit" class="create-role-button">Create Role</button>
-        </form>
-        <div v-if="createRoleMessage" class="form-message" :class="{ success: createRoleSuccess, error: !createRoleSuccess }">
-          {{ createRoleMessage }}
-        </div>
-        <div v-if="availableRoles.length" class="roles-list">
-          <h4>Existing Roles</h4>
-          <div class="roles-list-flex">
-            <div v-for="role in availableRoles" :key="role.id" class="role-list-item">
-              <span
-                class="role-badge"
-                :style="{ backgroundColor: role.badge_color || '#888' }"
-              >
-                <i v-if="role.badge_icon" :class="role.badge_icon"></i>
-                {{ role.name }}
-              </span>
-              <button class="delete-role-button" @click="$emit('deleteRole', role.id)">Delete</button>
-            </div>
+            <p v-else-if="achvUserId" style="font-size:12px;color:var(--muted);">Ingen achievements låst opp ennå.</p>
           </div>
         </div>
-      </div>
-      <div class="data-widget">
-        <h3>Manage User Achievements</h3>
-        <form @submit.prevent="deleteUserAchievement">
-          <div class="form-group">
-            <label for="user-select-achv">Select User</label>
-            <select
-              id="user-select-achv"
-              v-model="achvUserId"
-              @change="fetchUserAchievements"
-            >
-              <option value="" disabled>Select a user</option>
-              <option v-for="user in usersList" :key="user.id" :value="user.id">
-                {{ user.username ? user.username + ', ' + user.email : user.email }}
-              </option>
-            </select>
-          </div>
-          <div v-if="userAchievements.length > 0">
-            <label>Achievements:</label>
-            <div class="checkbox-group-vertical">
-              <label
-                v-for="achv in userAchievements"
-                :key="achv.achievement_id"
-                class="custom-checkbox"
-              >
-                <input
-                  type="checkbox"
-                  :value="achv.achievement_id"
-                  v-model="selectedAchievements"
-                />
-                {{ achv.name || achv.title }} <span v-if="achv.unlocked_at"> (Unlocked: {{ achv.unlocked_at.slice(0, 10) }})</span>
-              </label>
-            </div>
-          </div>
-          <div v-else-if="achvUserId">
-            <p>No achievements unlocked yet.</p>
-          </div>
-          <button type="submit" class="update-role-button" :disabled="selectedAchievements.length === 0">
-            Remove Selected Achievements
-          </button>
-        </form>
-        <div v-if="achvRemoveMessage" class="form-message" :class="{ success: achvRemoveSuccess, error: !achvRemoveSuccess }">
-          {{ achvRemoveMessage }}
-        </div>
+        <button class="btn btn-danger btn-sm" style="margin-top:10px;" @click="deleteUserAchievement" :disabled="!selectedAchievements.length">
+          Fjern valgte achievements
+        </button>
+        <div v-if="achvRemoveMessage" class="form-message" :class="{ success: achvRemoveSuccess, error: !achvRemoveSuccess }">{{ achvRemoveMessage }}</div>
       </div>
     </div>
   </section>
@@ -338,32 +274,10 @@ export default {
 
 
 <style scoped>
-/* Admin widgets row: flexbox for horizontal layout */
-.admin-widgets-row {
+.checkbox-group-vertical {
   display: flex;
-  flex-wrap: wrap; /* Allows wrapping on smaller screens */
-  gap: 2rem;       /* Space between widgets */
-  justify-content: flex-start;
-  align-items: flex-start;
-}
-
-/* Each widget: flexible width, min and max for responsiveness */
-.data-widget {
-  flex: 1 1 320px;      /* Grow, shrink, min width */
-  max-width: 400px;     /* Prevents widgets from getting too wide */
-  min-width: 280px;     /* Prevents widgets from getting too narrow */
-  margin-bottom: 2rem;  /* Space below for wrapping */
-}
-
-/* Responsive: stack on mobile */
-@media (max-width: 900px) {
-  .admin-widgets-row {
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-  .data-widget {
-    max-width: 100%;
-    min-width: 0;
-  }
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 </style>

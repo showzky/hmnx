@@ -16,89 +16,121 @@
 
         <!-- Authenticated User Dropdown -->
         <li v-if="auth.isAuthenticated" class="auth-dropdown">
-          <div class="navbar-icons">
-            <div class="avatar" ref="avatar" @click="toggleDropdown">
+          <div class="nav-avatar-wrap" ref="avatar" @click="toggleDropdown">
+            <div class="nav-avatar">
               <img v-if="auth.user && auth.user.avatar" :src="auth.user.avatar" alt="User Avatar" />
-              <i v-else class="fa-solid fa-user"></i>
+              <span v-else>{{ userInitial }}</span>
             </div>
-            <span v-if="hasUnreadNotifications" class="notification-dot-navbar"></span>
+            <span v-if="hasUnreadNotifications" class="nav-unread-dot"></span>
           </div>
 
-          <transition name="slide-fade">
-            <div v-if="showDropdown" class="dropdown-menu" ref="dropdownMenu" @click.stop>
-              
-               <!-- Profile & Settings -->
-               <button class="dropdown-item" @click="viewProfile"><i class="fas fa-user mr-2"></i>Vis Profil</button>
-               <button class="dropdown-item" @click="goToSettings">
-                 <i class="fas fa-cog mr-2"></i>Settings
-               </button>
-              <!-- Toggle Notifications -->
-              <div class="dropdown-item" @click="toggleNotificationsList">
-                <i class="fas fa-bell mr-2"></i>Notifications
-                <span v-if="unreadNotificationCount > 0" class="notification-count-badge">
-                  {{ unreadNotificationCount }}
-                </span>
-              </div>
+          <transition name="dd-slide">
+            <div v-if="showDropdown" class="dd-menu" ref="dropdownMenu" @click.stop>
 
-
-              <!-- Notification List -->
-              <transition name="slide-fade">
-                <div v-if="showNotificationsList" class="notifications-section">
-                  <div v-if="notifications.length" class="px-4 py-2">
-                    <h6 class="text-sm font-medium text-gray-500 mb-2">Updates</h6>
-                    <div v-for="notification in notifications" :key="notification.id" class="dropdown-notification-item py-2">
-                      <button class="notification-link w-full text-left" @click="handleNotificationClick(notification)">
-                        {{ notification.message }}
-                      </button>
-                    </div>
-                    <button class="dropdown-item view-all-btn mt-2" @click.stop="markAllAsRead">Mark All as Read</button>
+              <!-- Header -->
+              <div class="dd-header">
+                <div class="dd-avatar-row">
+                  <div class="dd-av">
+                    <img v-if="auth.user && auth.user.avatar" :src="auth.user.avatar" />
+                    <span v-else>{{ userInitial }}</span>
+                    <span class="dd-online-dot"></span>
                   </div>
-                  <div v-else class="px-4 py-6 text-center text-gray-400">
-                    No new notifications
+                  <div>
+                    <div class="dd-name">{{ userDisplayName }}</div>
+                    <div class="dd-rank">{{ topRoleLabel }} · Online</div>
                   </div>
                 </div>
-              </transition>
-
-              <!-- Toggle Friend Requests -->
-              <div class="dropdown-item" @click="toggleRequestsList">
-                <i class="fas fa-user-friends mr-2"></i>Friend Requests
-                <span v-if="pendingRequests.length > 0" class="notification-count-badge">
-                  {{ pendingRequests.length }}
-                </span>
               </div>
 
-              <!-- Friend Requests List -->
-              <transition name="slide-fade">
-                <div v-if="showRequestsList" class="notifications-section">
-                  <div v-if="pendingRequests.length" class="px-4 py-2">
-                    <h6 class="text-sm font-medium text-gray-500 mb-2">Friend Requests</h6>
-                    <div v-for="req in pendingRequests" :key="req.id" class="flex justify-between items-center py-2">
-                      <span>{{ req.sender.username || req.sender.email }}</span>
-                      <div class="flex gap-2">
-                        <button @click="acceptRequest(req.id)" class="text-xs bg-green-500 hover:bg-green-600 text-white py-1 px-3 rounded">Accept</button>
-                        <button @click="declineRequest(req.id)" class="text-xs bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded">Decline</button>
+              <!-- Core nav items -->
+              <div class="dd-section">
+                <div class="dd-item" @click="viewProfile">
+                  <span class="dd-icon">👤</span>
+                  <span class="dd-label">Vis profil</span>
+                </div>
+                <div class="dd-item" @click="goToSettings">
+                  <span class="dd-icon">⚙️</span>
+                  <span class="dd-label">Innstillinger</span>
+                </div>
+
+                <!-- Notifications accordion -->
+                <div class="dd-item" :class="{ 'is-open': showNotificationsList }" @click="toggleNotificationsList">
+                  <span class="dd-icon">🔔</span>
+                  <span class="dd-label">Varsler</span>
+                  <span v-if="unreadNotificationCount > 0" class="dd-badge">{{ unreadNotificationCount }}</span>
+                  <span class="dd-chevron">▾</span>
+                </div>
+                <div class="dd-panel" :class="{ open: showNotificationsList }">
+                  <template v-if="notifications.length">
+                    <div
+                      v-for="notif in notifications.slice(0, 4)"
+                      :key="notif.id"
+                      class="notif-item"
+                      :class="{ unread: !notif.is_read }"
+                      @click="handleNotificationClick(notif)"
+                    >
+                      <div class="notif-dot" :style="{ background: notifDotColor(notif) }"></div>
+                      <div class="notif-text">{{ notif.message }}</div>
+                      <div class="notif-time">{{ formatNotifTime(notif.created_at) }}</div>
+                    </div>
+                    <div class="panel-footer" @click.stop="markAllAsRead">Se alle varsler</div>
+                  </template>
+                  <div v-else class="notif-empty">Ingen nye varsler</div>
+                </div>
+
+                <!-- Friend requests accordion -->
+                <div class="dd-item" :class="{ 'is-open': showRequestsList }" @click="toggleRequestsList">
+                  <span class="dd-icon">🤝</span>
+                  <span class="dd-label">Venneforespørsler</span>
+                  <span v-if="pendingRequests.length > 0" class="dd-badge">{{ pendingRequests.length }}</span>
+                  <span class="dd-chevron">▾</span>
+                </div>
+                <div class="dd-panel" :class="{ open: showRequestsList }">
+                  <template v-if="pendingRequests.length">
+                    <div v-for="req in pendingRequests" :key="req.id" class="freq-item">
+                      <div class="freq-avatar" :style="{ background: requestAvatarColor(req) }">
+                        {{ (req.sender.username || req.sender.email || '?')[0].toUpperCase() }}
+                      </div>
+                      <div class="freq-info">
+                        <div class="freq-name">{{ req.sender.username || req.sender.email }}</div>
+                        <div class="freq-sub">{{ req.sender.roles && req.sender.roles[0] ? req.sender.roles[0].name : 'Bruker' }}</div>
+                      </div>
+                      <div class="freq-btns">
+                        <button class="freq-btn freq-ok" @click.stop="acceptRequest(req.id)">✓</button>
+                        <button class="freq-btn freq-no" @click.stop="declineRequest(req.id)">✕</button>
                       </div>
                     </div>
+                  </template>
+                  <div v-else class="notif-empty">Ingen ventende forespørsler</div>
+                </div>
+              </div>
+
+              <!-- Dashboard link — role-based -->
+              <template v-if="isAdminOrDev || isProducerOnly">
+                <div class="dd-divider"></div>
+                <div class="dd-section">
+                  <div v-if="isAdminOrDev" class="dd-item admin-item" @click="goToAdminDashboard">
+                    <span class="dd-icon">🛡️</span>
+                    <span class="dd-label">Admin Dashboard</span>
+                    <span class="dd-admin-pip"></span>
                   </div>
-                  <div v-else class="px-4 py-6 text-center text-gray-400">
-                    No friend requests
+                  <div v-else class="dd-item admin-item" @click="goToProducerDashboard">
+                    <span class="dd-icon">🎵</span>
+                    <span class="dd-label">Music Dashboard</span>
+                    <span class="dd-admin-pip"></span>
                   </div>
                 </div>
-              </transition>
-
-             
-
-              <!-- Dark Mode -->
-              <button class="dropdown-item dark-mode-toggle" @click="toggleDarkMode">
-                <i :class="isDarkMode ? 'fas fa-sun' : 'fas fa-moon'" class="toggle-icon mr-2"></i>
-                <span>{{ isDarkMode ? 'Light Mode' : 'Dark Mode' }}</span>
-              </button>
-
-              <ProducerButton v-if="isProducer" />
+              </template>
 
               <!-- Logout -->
-              <button class="dropdown-item" @click="logoutUser"><i class="fas fa-sign-out-alt"></i>Utlogging</button>
-              
+              <div class="dd-divider"></div>
+              <div class="dd-section">
+                <div class="dd-item dd-logout" @click="logoutUser">
+                  <span class="dd-icon">→</span>
+                  <span class="dd-label">Logg ut</span>
+                </div>
+              </div>
+
             </div>
           </transition>
         </li>
@@ -113,35 +145,54 @@
 </template>
 
 
-
 <script>
 import { useAuthStore } from '@/stores/authStore';
 import axios from '@/axios';
 import { listIncomingRequests, acceptFriendRequest, declineFriendRequest } from '@/services/friendRequestService';
-import ProducerButton from '@/components/ProducerButton.vue';
-import { toHandlers } from 'vue';
 
 export default {
   name: 'Navbar',
-  components: {
-    ProducerButton
-  },
   emits: ['toggle-login'],
   data() {
     return {
       showDropdown: false,
       showNotificationsList: false,
+      showRequestsList: false,
       notifications: [],
       pendingRequests: [],
-      showRequestsList: false,
       isDarkMode: localStorage.getItem('darkMode') === 'true'
     };
-    
   },
   computed: {
-    
     auth() {
       return useAuthStore();
+    },
+    userDisplayName() {
+      const u = this.auth.user;
+      return u?.username || u?.email || 'Bruker';
+    },
+    userInitial() {
+      return (this.userDisplayName[0] || 'B').toUpperCase();
+    },
+    userRoles() {
+      const u = this.auth.user;
+      if (!u || !u.roles) return [];
+      return u.roles.map(r => r.name.toLowerCase());
+    },
+    topRoleLabel() {
+      const r = this.userRoles;
+      if (r.includes('developer')) return 'Developer';
+      if (r.includes('admin')) return 'Admin';
+      if (r.includes('producer')) return 'Producer';
+      if (r.includes('staff')) return 'Staff';
+      if (r.includes('member')) return 'Medlem';
+      return 'Bruker';
+    },
+    isAdminOrDev() {
+      return this.userRoles.some(r => ['admin', 'developer', 'staff', 'moderator', 'superadmin'].includes(r));
+    },
+    isProducerOnly() {
+      return !this.isAdminOrDev && this.userRoles.includes('producer');
     },
     unreadNotificationCount() {
       return this.notifications.filter(n => !n.is_read).length;
@@ -159,11 +210,6 @@ export default {
         console.error('Error fetching notifications:', error);
       }
     },
-    isProducer() {
-  const user = this.auth.user;
-  if (!user || !user.roles) return false;
-  return user.roles.some(role => role.name.toLowerCase() === 'producer');
-  },
     async fetchRequests() {
       try {
         const { data } = await listIncomingRequests();
@@ -179,27 +225,21 @@ export default {
         this.fetchRequests();
       }
     },
-    toggleRequestsList() {
-  this.showRequestsList = !this.showRequestsList;
-  this.showNotificationsList = false;
-
-  if (this.showRequestsList) {
-    this.fetchRequests();
-  }
-},
     toggleNotificationsList() {
       this.showNotificationsList = !this.showNotificationsList;
-      if (this.showNotificationsList) {
-        this.showRequestsList = false;
+      if (this.showNotificationsList) this.showRequestsList = false;
+    },
+    toggleRequestsList() {
+      this.showRequestsList = !this.showRequestsList;
+      if (this.showRequestsList) {
+        this.showNotificationsList = false;
+        this.fetchRequests();
       }
     },
     async acceptRequest(id) {
-  await acceptFriendRequest(id);
-  this.pendingRequests = this.pendingRequests.filter(r => r.id !== id);
-
-  // ✅ refresh friend list if the FriendsList component is available
-  this.$refs.friendsList?.loadFriends();
-},
+      await acceptFriendRequest(id);
+      this.pendingRequests = this.pendingRequests.filter(r => r.id !== id);
+    },
     async declineRequest(id) {
       await declineFriendRequest(id);
       this.pendingRequests = this.pendingRequests.filter(r => r.id !== id);
@@ -223,19 +263,39 @@ export default {
       }
     },
     handleNotificationClick(notification) {
-      console.log('Notification clicked:', notification);
       if (notification.related_object_id) {
-        this.$router.push({ 
-          name: 'EventDetail', 
-          params: { eventId: notification.related_object_id } 
-        });
-      } else {
-        console.log('No related event id found in notification.');
+        this.$router.push({ name: 'EventDetail', params: { eventId: notification.related_object_id } });
       }
       this.markNotificationAsRead(notification.id);
     },
+    formatNotifTime(dateStr) {
+      if (!dateStr) return '';
+      const diff = Date.now() - new Date(dateStr).getTime();
+      const mins = Math.floor(diff / 60000);
+      if (mins < 1) return 'nå';
+      if (mins < 60) return `${mins}m`;
+      const hours = Math.floor(mins / 60);
+      if (hours < 24) return `${hours}t`;
+      const days = Math.floor(hours / 24);
+      if (days === 1) return 'i går';
+      return `${days}d`;
+    },
+    notifDotColor(notif) {
+      if (!notif.is_read) {
+        if (notif.type === 'friend_request') return 'var(--cyan)';
+        if (notif.type === 'event_created') return 'var(--gold)';
+        if (notif.type === 'achievement') return 'var(--green)';
+        return 'var(--cyan)';
+      }
+      return 'var(--text-muted)';
+    },
+    requestAvatarColor(req) {
+      const name = req.sender.username || req.sender.email || '?';
+      const hue = (name.charCodeAt(0) * 137) % 360;
+      return `linear-gradient(135deg, hsl(${hue},55%,22%), hsl(${hue},55%,12%))`;
+    },
     goToForum() {
-      window.location.href = "https://forum.hmnmentalpasienter.no";
+      window.location.href = 'https://forum.hmnmentalpasienter.no';
     },
     goToSettings() {
       this.showDropdown = false;
@@ -244,6 +304,14 @@ export default {
     viewProfile() {
       this.showDropdown = false;
       this.$router.push('/dashboard');
+    },
+    goToAdminDashboard() {
+      this.showDropdown = false;
+      this.$router.push('/management');
+    },
+    goToProducerDashboard() {
+      this.showDropdown = false;
+      this.$router.push('/management');
     },
     handleAuthAction() {
       this.auth.isAuthenticated ? this.logoutUser() : this.$emit('toggle-login');
@@ -259,9 +327,12 @@ export default {
       localStorage.setItem('darkMode', this.isDarkMode);
     },
     handleClickOutside(event) {
-      if (this.showDropdown && !this.$refs.avatar.contains(event.target) && !this.$refs.dropdownMenu.contains(event.target)) {
-        this.showDropdown = false;
-        this.showNotificationsList = false;
+      if (this.showDropdown && this.$refs.avatar && this.$refs.dropdownMenu) {
+        if (!this.$refs.avatar.contains(event.target) && !this.$refs.dropdownMenu.contains(event.target)) {
+          this.showDropdown = false;
+          this.showNotificationsList = false;
+          this.showRequestsList = false;
+        }
       }
     }
   },
@@ -276,19 +347,12 @@ export default {
 </script>
 
 <style scoped>
-/* Add this new style */
-.logo-link {
-  text-decoration: none;
-  color: inherit;
-}
-
-/* Navbar main styling */
-.navbar {
+/* ── NAV SHELL ── */
+.hmn-navbar {
   background-color: #ffffff;
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
   padding: 0.75rem 0;
 }
-
 .nav-container {
   max-width: 1200px;
   margin: 0 auto;
@@ -297,328 +361,180 @@ export default {
   align-items: center;
   padding: 0 1.5rem;
 }
-
-.logo {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #2c3e50;
-}
-
-.nav-links {
-  display: flex;
-  gap: 1.5rem;
-  list-style: none;
-}
-
-.nav-links a {
-  text-decoration: none;
-  color: #34495e;
-  font-weight: 500;
-  transition: color 0.3s ease;
-}
-
-.nav-links a:hover {
-  color: #3498db;
-}
-
-/* Add styles for the Forum button to match other nav links */
+.logo-link { text-decoration: none; color: inherit; }
+.logo { font-size: 1.5rem; font-weight: bold; color: #2c3e50; }
+.nav-links { display: flex; gap: 1.5rem; list-style: none; align-items: center; }
+.nav-link { text-decoration: none; color: #34495e; font-weight: 500; transition: color 0.3s; }
+.nav-link:hover { color: #3498db; }
 .nav-links button.nav-link {
-  text-decoration: none;
-  color: #34495e;
-  font-weight: 500;
-  transition: color 0.3s ease;
-  font-size: inherit;
-  font-family: inherit;
-  padding: 0;
-  background: none;
-  border: none;
-  cursor: pointer;
+  background: none; border: none; cursor: pointer;
+  font-size: inherit; font-family: inherit; padding: 0;
 }
-
-.nav-links button.nav-link:hover {
-  color: #3498db;
-}
-
-/* Dark mode styles for the Forum button */
-.dark-mode .nav-links button.nav-link {
-  color: var(--text);
-}
-
-.dark-mode .nav-links button.nav-link:hover {
-  color: #3498db;
-}
-
 .login-btn {
-  background-color: #3498db;
-  color: white;
-  border: none;
-  padding: 0.75rem 1.25rem;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
+  background-color: #3498db; color: white; border: none;
+  padding: 0.75rem 1.25rem; border-radius: 5px; cursor: pointer;
+  transition: background-color 0.3s;
+}
+.login-btn:hover { background-color: #2980b9; }
+
+/* ── DARK MODE NAV ── */
+.dark-mode .hmn-navbar { background-color: var(--card-bg, #16151d); }
+.dark-mode .logo { color: #ffffff; }
+.dark-mode .nav-link { color: var(--text, #b8ccd8); }
+.dark-mode .nav-links button.nav-link { color: var(--text, #b8ccd8); }
+
+/* ── AUTH DROPDOWN CONTAINER ── */
+.auth-dropdown { position: relative; }
+.nav-avatar-wrap { position: relative; cursor: pointer; display: inline-flex; }
+.nav-avatar {
+  width: 38px; height: 38px; border-radius: 50%; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #c8102e, #7a0e1e);
+  color: white; font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px; font-weight: 900; border: 2px solid rgba(200,16,46,0.3);
+}
+.nav-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.nav-unread-dot {
+  position: absolute; top: -1px; right: -1px;
+  width: 10px; height: 10px; background: #c8102e;
+  border-radius: 50%; border: 2px solid white;
 }
 
-.login-btn:hover {
-  background-color: #2980b9;
-}
-
-/* Authentication dropdown styling */
-.auth-dropdown {
-  position: relative;
-}
-
-/* Make the clickable notification link look modern */
-.notification-link {
-  background: none;      /* Remove default background */
-  border: none;          /* Remove default border */
-  padding: 0.5rem 0;      /* Add some vertical padding */
-  font-size: 0.9rem;      /* Adjust font size */
-  color: #333;           /* Base text color */
-  text-align: left;      /* Align text to left */
-  cursor: pointer;       /* Show pointer cursor */
-  width: 100%;           /* Make it take the full container width */
-  transition: color 0.3s ease, transform 0.3s ease;
-}
-
-/* Hover effect for the notification link */
-.notification-link:hover {
-  color: #3498db;        /* Change color on hover */
-  transform: translateX(5px);  /* Slight move on hover */
-  text-decoration: underline;
-}
-
-
-/* Navbar icons container (avatar and notification dot) */
-.navbar-icons {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  position: relative;
-}
-
-/* Avatar styling */
-.avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  overflow: hidden;
-  cursor: pointer;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: #3498db;
-  color: white;
-  font-size: 1.2rem;
-}
-
-.avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* Notification dot styling */
-.notification-dot-navbar {
-  display: block;
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 12px;
-  height: 12px;
-  background-color: red;
-  border-radius: 50%;
-  border: 2px solid white;
-}
-
-/* Dropdown menu styling */
-.dropdown-menu {
-  position: absolute;
-  right: 0;
-  top: 55px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid #add8e6;
-  border-radius: 12px;
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.05), 0 10px 30px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(8px);
+/* ── DROPDOWN MENU ── */
+.dd-menu {
+  position: absolute; right: 0; top: calc(100% + 10px);
+  width: 256px; background: #0c121c;
+  border: 1px solid rgba(255,255,255,0.11); border-radius: 12px; overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
   z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  min-width: 200px;
-  overflow: hidden;
-  transform-origin: top right;
-  animation: dropdownEntrance 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.dd-menu::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 60px;
+  background: radial-gradient(ellipse 80% 100% at 50% 0%, rgba(0,184,208,0.06), transparent);
+  pointer-events: none;
 }
 
-@keyframes dropdownEntrance {
-  from {
-    opacity: 0;
-    transform: translateY(-10px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+/* ── HEADER ── */
+.dd-header {
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  position: relative; z-index: 1;
+}
+.dd-avatar-row { display: flex; align-items: center; gap: 12px; }
+.dd-av {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: linear-gradient(135deg, #c8102e, #7a0e1e);
+  border: 2px solid rgba(200,16,46,0.35); box-shadow: 0 0 14px rgba(200,16,46,0.2);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 900; color: white;
+  flex-shrink: 0; position: relative; overflow: hidden;
+}
+.dd-av img { width: 100%; height: 100%; object-fit: cover; }
+.dd-online-dot {
+  position: absolute; bottom: 1px; right: 1px;
+  width: 10px; height: 10px; background: #28b860;
+  border-radius: 50%; border: 2px solid #0c121c; box-shadow: 0 0 6px #28b860;
+}
+.dd-name {
+  font-family: 'Barlow Condensed', sans-serif; font-size: 17px; font-weight: 900;
+  color: #eaf2ff; letter-spacing: 0.03em; line-height: 1;
+}
+.dd-rank { font-size: 11px; color: #3d5668; margin-top: 3px; }
+
+/* ── SECTION / DIVIDER ── */
+.dd-section { padding: 6px; }
+.dd-divider { height: 1px; background: rgba(255,255,255,0.07); margin: 2px 0; }
+
+/* ── NAV ITEM ── */
+.dd-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+  border-radius: 7px; font-size: 13px; color: #b8ccd8; cursor: pointer;
+  transition: all 0.15s; font-family: 'Barlow', sans-serif; font-weight: 500;
+  user-select: none;
+}
+.dd-item:hover { background: rgba(255,255,255,0.05); color: #eaf2ff; }
+.dd-item:hover .dd-icon { color: #00b8d0; }
+.dd-item.is-open {
+  background: rgba(0,184,208,0.06); color: #eaf2ff;
+  border-radius: 7px 7px 0 0;
+}
+.dd-item.is-open .dd-icon { color: #00b8d0; }
+.dd-item.is-open .dd-chevron { transform: rotate(180deg); color: #00b8d0; }
+.dd-icon { width: 18px; text-align: center; font-size: 14px; color: #3d5668; transition: color 0.15s; flex-shrink: 0; }
+.dd-label { flex: 1; }
+.dd-chevron { font-size: 10px; color: #3d5668; transition: transform 0.2s, color 0.2s; }
+.dd-badge {
+  min-width: 18px; height: 18px; border-radius: 9px;
+  background: #c8102e; color: white; font-size: 10px; font-weight: 700;
+  font-family: 'Barlow Condensed', sans-serif;
+  display: flex; align-items: center; justify-content: center; padding: 0 5px;
 }
 
-/* Slide-fade transition for dropdown and notifications */
-.slide-fade-enter-active,
-.slide-fade-leave-active {
-  transition: all 0.3s ease;
-}
-.slide-fade-enter-from,
-.slide-fade-leave-to {
-  transform: translateY(-10px);
-  opacity: 0;
+/* ── ADMIN ITEM ── */
+.dd-item.admin-item:hover { background: rgba(0,184,208,0.06); }
+.dd-admin-pip {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #00b8d0; box-shadow: 0 0 5px #00b8d0; flex-shrink: 0;
 }
 
-/* Notification count badge styling */
-.notification-count-badge {
-  margin-left: 8px;
-  color: red;
-  font-weight: bold;
+/* ── LOGOUT ── */
+.dd-item.dd-logout { color: rgba(255,255,255,0.3); }
+.dd-item.dd-logout:hover { background: rgba(200,16,46,0.08); color: #e8304a; }
+.dd-item.dd-logout:hover .dd-icon { color: #e8304a; }
+
+/* ── ACCORDION PANEL ── */
+.dd-panel {
+  display: none; background: rgba(0,0,0,0.25);
+  border-top: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  padding: 10px; flex-direction: column; gap: 7px;
+  margin: 0 0 2px; border-radius: 0 0 7px 7px;
 }
+.dd-panel.open { display: flex; }
 
-/* Notifications sub-list container styling */
-.notifications-section {
-  padding: 0 1.5rem 1rem 1.5rem;
-  max-height: 300px;
-  overflow-y: auto;
-  border-bottom: 1px solid #e0e0e0;
+/* ── NOTIFICATION ITEM ── */
+.notif-item {
+  display: flex; align-items: flex-start; gap: 9px; padding: 9px 10px;
+  border-radius: 7px; background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07); cursor: pointer; transition: background 0.15s;
 }
+.notif-item:hover { background: rgba(255,255,255,0.06); }
+.notif-item.unread { border-color: rgba(0,184,208,0.18); }
+.notif-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+.notif-text { font-size: 12px; color: rgba(255,255,255,0.5); font-family: 'Barlow', sans-serif; line-height: 1.55; flex: 1; }
+.notif-time { font-size: 10px; color: #3d5668; white-space: nowrap; margin-top: 1px; flex-shrink: 0; }
+.notif-empty { font-size: 12px; color: #3d5668; font-family: 'Barlow', sans-serif; font-style: italic; text-align: center; padding: 10px 0; }
 
-/* Notification items styling */
-.dropdown-notification-item {
-  padding: 0.7rem 0;
-  font-size: 0.9rem;
-  color: #333;
-  border-bottom: 1px dashed #eee;
-  word-wrap: break-word;
+/* ── FRIEND REQUEST ITEM ── */
+.freq-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border-radius: 7px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
 }
-.dropdown-notification-item:last-child {
-  border-bottom: none;
+.freq-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 900; color: white; flex-shrink: 0;
 }
-
-/* Dropdown item styling */
-.dropdown-item {
-  padding: 1rem 1.5rem;
-  background: transparent;
-  border: none;
-  color: #333;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: background 0.3s ease, transform 0.3s ease;
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.freq-info { flex: 1; min-width: 0; }
+.freq-name { font-size: 12px; font-weight: 600; color: #eaf2ff; font-family: 'Barlow', sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.freq-sub { font-size: 10px; color: #3d5668; }
+.freq-btns { display: flex; gap: 5px; flex-shrink: 0; }
+.freq-btn {
+  padding: 4px 9px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  font-family: 'Barlow Condensed', sans-serif; letter-spacing: 0.05em; text-transform: uppercase;
+  cursor: pointer; border: none; transition: all 0.15s;
 }
+.freq-ok { background: rgba(40,184,96,0.15); color: #28b860; border: 1px solid rgba(40,184,96,0.25); }
+.freq-ok:hover { background: rgba(40,184,96,0.28); }
+.freq-no { background: rgba(255,255,255,0.04); color: #3d5668; border: 1px solid rgba(255,255,255,0.11); }
+.freq-no:hover { background: rgba(200,16,46,0.08); color: #e8304a; border-color: rgba(200,16,46,0.2); }
 
-.dropdown-item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 0;
-  height: 2px;
-  background: linear-gradient(90deg, #add8e6, #87ceeb);
-  transition: width 0.3s ease;
-}
+/* ── PANEL FOOTER ── */
+.panel-footer { font-size: 11px; color: #00b8d0; text-align: center; cursor: pointer; padding: 4px 0 2px; font-family: 'Barlow', sans-serif; }
+.panel-footer:hover { text-decoration: underline; }
 
-.dropdown-item:hover {
-  background: #f0f0f0;
-  transform: translateX(8px);
-}
-
-.dropdown-item:hover::before {
-  width: 100%;
-}
-
-
-  .dark-mode {
-    --primary: #7b2cbf;
-    --secondary: #3a86ff;
-    --accent: #ff006e;
-    --background: #0f0e17;
-    --text: #fffffe;
-    --card-bg: #16151d;
-    background-color: var(--background);
-    color: var(--text);
-  }
-  
-
-/* ===================== START Dark Mode Toggle Styling ===================== */
-.dark-mode-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: transparent;
-  border: none;
-  font-size: 0.95rem;
-  color: #000000;
-  cursor: pointer;
-  padding: 0.75rem 1.5rem;
-  transition: background 0.3s ease, color 0.3s ease;
-}
-
-.dark-mode-toggle:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--accent);
-}
-
-.dark-mode-toggle .toggle-icon {
-  /* Optional: add a smooth transition for icon change */
-  transition: transform 0.3s ease;
-}
-
-/* Optionally, if you want the icon to bounce on toggle: */
-.dark-mode-toggle:active .toggle-icon {
-  transform: scale(0.9);
-}
-/* ===================== END Dark Mode Toggle Styling ===================== */
-
-/* Existing dark mode overrides for navbar */
-.dark-mode .navbar {
-  background-color: var(--card-bg);
-}
-
-.dark-mode .nav-links a {
-  color: var(--text);
-}
-
-/* Dark mode styles for dropdown menu */
-.dark-mode .dropdown-menu {
-  background: rgba(30, 30, 30, 0.95);
-  border-color: #444;
-}
-
-.dark-mode .dropdown-item {
-  color: var(--text);
-}
-
-.dark-mode .dropdown-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.dark-mode .notification-link {
-  color: var(--text);
-}
-
-.dark-mode .notification-link:hover {
-  color: #3498db;
-}
-
-.dark-mode .text-gray-500 {
-  color: #a0a0a0;
-}
-
-.dark-mode .text-gray-400 {
-  color: #666;
-}
-
-
-/* Dark mode styles */
-.dark-mode .logo {
-    color: #ffffff;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
+/* ── TRANSITION ── */
+.dd-slide-enter-active, .dd-slide-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
+.dd-slide-enter-from, .dd-slide-leave-to { opacity: 0; transform: translateY(-8px) scale(0.97); }
 </style>
+

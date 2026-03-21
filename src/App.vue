@@ -2,40 +2,59 @@
 import { ref } from 'vue';
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
-import Navbar from './components/NavBar.vue';
-import Footer from './components/Footer.vue';
-import LoginModal from './components/LoginModal.vue';
+import HmnDriftsmelding from './components/HmnDriftsmelding.vue';
+import HmnNav from './components/HmnNav.vue';
+import HmnFooter from './components/HmnFooter.vue';
+import HmnLoginModal from './components/HmnLoginModal.vue';
+import HmnRegisterModal from './components/HmnRegisterModal.vue';
+import HmnToast from './components/HmnToast.vue';
 import MaintenanceBanner from './components/MaintenanceBanner.vue';
 
-// Reactive flag to control the visibility of the login modal
-const showLogin = ref(false);
+const showLogin    = ref(false);
+const showRegister = ref(false);
+const toast        = ref(null);
 
-// Function to toggle the login modal visibility
 function toggleLoginModal() {
   showLogin.value = !showLogin.value;
+  if (showLogin.value) showRegister.value = false;
 }
 
-//tos consts
+function switchToRegister() {
+  showLogin.value = false;
+  showRegister.value = true;
+}
+
+function switchToLogin() {
+  showRegister.value = false;
+  showLogin.value = true;
+}
+
 const route = useRoute()
 const hideLayoutRoutes = ['/tos']
 const showLayout = computed(() => !hideLayoutRoutes.includes(route.path))
-
 </script>
 
 <template>
   <div id="app">
-    <!-- Navbar emits "toggle-login" event to toggle the modal -->
-    <Navbar v-if="showLayout" @toggle-login="toggleLoginModal" />
+    <HmnDriftsmelding v-if="showLayout" />
+    <HmnNav v-if="showLayout" @toggle-login="toggleLoginModal" @toggle-register="() => { showRegister = true; showLogin = false; }" />
     <MaintenanceBanner />
-    
-    <!-- Main Content rendered by Vue Router -->
+
     <router-view />
 
-    <!-- Footer -->
-    <Footer v-if="showLayout"/>
+    <HmnFooter v-if="showLayout" />
 
-    <!-- Conditionally render the LoginModal -->
-    <LoginModal v-if="showLogin" @hide-login="toggleLoginModal" />
+    <HmnLoginModal
+      :show="showLogin"
+      @close="showLogin = false"
+      @switch-register="switchToRegister"
+    />
+    <HmnRegisterModal
+      :show="showRegister"
+      @close="showRegister = false"
+      @switch-login="switchToLogin"
+    />
+    <HmnToast ref="toast" />
   </div>
 </template>
 

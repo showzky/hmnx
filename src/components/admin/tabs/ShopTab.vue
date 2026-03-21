@@ -1,7 +1,13 @@
 <template>
-  <div class="data-widget">
+  <section class="shop-tab-wrap">
+    <div class="sec-head mb24">
+      <div>
+        <div class="sec-title">Shop <em>Items</em></div>
+        <div class="sec-subtitle">Administrer varer og priser i butikken.</div>
+      </div>
+    </div>
     <ShopAdmin />
-  </div>
+  </section>
 </template>
 
 <script>

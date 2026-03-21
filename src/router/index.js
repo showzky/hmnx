@@ -16,7 +16,8 @@ import Management from '@/pages/Management.vue';
 import EventDetailPage from '@/pages/EventDetailPage.vue';
 import Settings from '@/components/Settings.vue';
 import FriendsList from '@/views/FriendsList.vue'
-//import UserProfile from '../pages/UserProfile.vue';
+import UserProfile from '../pages/UserProfile.vue';
+import Ranks from '@/pages/Ranks.vue';
 import PendingRequests from '../components/PendingRequests.vue';
 import Shop from '@/pages/Shop.vue';
 import Contact from '@/pages/Contact.vue';   
@@ -49,7 +50,13 @@ const routes = [
   {
     path: '/users/:userId',
     name: 'UserProfile',
-    component: Dashboard,
+    component: UserProfile,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/ranks',
+    name: 'Ranks',
+    component: Ranks,
     meta: { requiresAuth: true }
   },
   //{ path: '/clicker-game', redirect: '/coming-soon' },

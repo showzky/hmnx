@@ -7,7 +7,10 @@ export function useWebSocket(url = import.meta.env.VITE_SOCKET_URL) {
   const defaultMessage = 'System maintenance in progress. Please try again later.';
   const maintenanceStatus = ref({
     isActive: false,
-    message: ''
+    message: '',
+    title: '',
+    updatedAt: '',
+    ref: ''
   });
 
   // Initial HTTP fetch for maintenance status
@@ -27,7 +30,10 @@ export function useWebSocket(url = import.meta.env.VITE_SOCKET_URL) {
     console.log('🔄 Updating maintenance status with:', data);
     maintenanceStatus.value = {
       isActive: data.notice_maintenance_mode === 'on',
-      message: data.notice_maintenance_message || defaultMessage
+      message: data.notice_maintenance_message || defaultMessage,
+      title: data.notice_maintenance_title || 'Driftsmelding',
+      updatedAt: data.notice_maintenance_updated_at || '',
+      ref: data.notice_maintenance_ref || ''
     };
     console.log('✨ New maintenance status:', maintenanceStatus.value);
   };

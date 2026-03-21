@@ -1,20 +1,22 @@
 <template>
   <div>
-    <div v-if="!isLoading" class="admin-body-container">
-      <!-- Sidebar Navigation -->
-      <AdminSidebar
-        :activeTab="activeTab"
-        :userRoles="userRoles"
-        :open="open"
-        :isOnlyProducer="isOnlyProducer"
-        :isAdminOrDeveloper="isAdminOrDeveloper"
-        @set-active="setActive"
-        @toggle-group="toggleGroup"
-      />
-      
-      <!-- Main Content Area -->
-      <div class="admin-main-content">
-        <AdminHeader :displayName="displayName" />
+    <div v-if="!isLoading" class="admin-wrapper">
+      <!-- Topbar -->
+      <AdminHeader :displayName="displayName" :userRoles="userRoles" />
+      <!-- Body: sidebar + content -->
+      <div class="admin-layout">
+        <!-- Sidebar Navigation -->
+        <AdminSidebar
+          :activeTab="activeTab"
+          :userRoles="userRoles"
+          :open="open"
+          :isOnlyProducer="isOnlyProducer"
+          :isAdminOrDeveloper="isAdminOrDeveloper"
+          @set-active="setActive"
+          @toggle-group="toggleGroup"
+        />
+        <!-- Main Content Area -->
+        <div class="admin-main-content">
         <AdminContent
           :displayName="displayName"
           :isOnlyProducer="isOnlyProducer"
@@ -22,10 +24,9 @@
           :searchQuery="searchQuery"
           :upcomingEventsData="upcomingEventsData"
           :newEvent="newEvent"
-          :playlist="playlist"
-          :editingIndex="editingIndex"
-          :playlistMessage="playlistMessage"
-          :playlistSuccess="playlistSuccess"
+          :musicTracks="musicTracks"
+          :musicMessage="musicMessage"
+          :musicSuccess="musicSuccess"
           :createEventMessage="createEventMessage"
           :createEventSuccess="createEventSuccess"
           :userRoles="userRoles"
@@ -62,9 +63,10 @@
           @createEvent="createEvent"
           @deleteEvent="deleteEvent"
           @handleImageUpload="handleImageUpload"
-          @saveSong="saveSong"
-          @deleteSong="deleteSong"
-          @editSong="editSong"
+          @addTrack="handleAddTrack"
+          @deleteTrack="handleDeleteTrack"
+          @setFeatured="handleSetFeatured"
+          @reorderTracks="handleReorderTracks"
           @updateUserRole="updateUserRole"
           @fetchUserRolesToRemove="fetchUserRolesToRemove"
           @removeSelectedRoles="removeSelectedRoles"
@@ -80,9 +82,6 @@
           @deleteChangelogEntry="deleteChangelogEntry"
           @update:searchQuery="searchQuery = $event"
           @update:newEvent="newEvent = $event"
-          @update:playlist="playlist = $event"
-          @update:newSong="newSong = $event"
-          @playlistDragEnd="onPlaylistDragEnd"
           @update:userRoleUpdate="userRoleUpdate = $event"
           @update:userRoleRemove="userRoleRemove = $event"
           @update:rolesToRemove="rolesToRemove = $event"
@@ -93,8 +92,9 @@
           @update:maintenanceBannerMessage="maintenanceBannerMessage = $event"
           @update:newChangelog="newChangelog = $event"
         />
-      </div>
-    </div>
+        </div><!-- /admin-main-content -->
+      </div><!-- /admin-layout -->
+    </div><!-- /admin-wrapper -->
     <div v-else>Loading Management Panel...</div>
   </div>
 </template>
@@ -103,10 +103,7 @@ import '@/components/admin/assets/admin.css';
 import { useAuthStore } from '@/stores/authStore';
 import axios from '@/axios'; 
 import { useWebSocket } from '@/composables/useWebSocket';
-import { useMotion } from '@vueuse/motion';
-import { ref, onMounted } from 'vue';
-import ShopAdmin from '../components/ShopAdmin.vue';
-import Sortable from 'sortablejs';
+import { ref } from 'vue';
 
 import AdminSidebar from '../components/admin/AdminSidebar.vue';
 import AdminHeader from '../components/admin/AdminHeader.vue';
@@ -115,7 +112,6 @@ import AdminContent from '../components/admin/AdminContent.vue';
 export default {
   name: 'Management',
   components: { 
-    ShopAdmin,
     AdminSidebar,
     AdminHeader,
     AdminContent
@@ -130,8 +126,8 @@ export default {
       open: {
         core: true,
         content: true,
-        users: false,
-        extras: false
+        users: true,
+        extras: true
       },
       // Team Manager
       teamMembers: [],
@@ -197,11 +193,9 @@ export default {
       createEventSuccess: false,
 
       // Music
-      playlist: [],
-      newSong: { title: '', artist: '', cover: '', soundcloudUrl: '' },
-      playlistMessage: '',
-      playlistSuccess: false,
-      editingIndex: null,
+      musicTracks: [],
+      musicMessage: '',
+      musicSuccess: false,
       isLoadingSongs: true,
 
       // Changelog
@@ -248,10 +242,6 @@ export default {
     canManageSongs() {
       return ['developer', 'admin', 'producer'].some(role => this.userRoles.includes(role));
     },
-    currentSong() {
-      if (!this.playlist.length) return undefined;
-      return this.playlist[this.editingIndex ?? 0];
-    },
     isOnlyProducer() {
       return (
         this.userRoles.includes('producer') &&
@@ -275,56 +265,13 @@ export default {
     console.log('New event order:', this.filteredEvents);
     // Optional: Save the new order here
   },
-  onPlaylistDragEnd(evt) {
-  // 1) Update local array order
-  if (evt.oldIndex !== evt.newIndex) {
-    console.log(`Moving song from position ${evt.oldIndex} to ${evt.newIndex}`);
-    const moved = this.playlist.splice(evt.oldIndex, 1)[0];
-    this.playlist.splice(evt.newIndex, 0, moved);
-    
-    // Immediately update position properties on the songs
-    this.playlist.forEach((song, index) => {
-      song.position = index;
-    });
-    
-    console.log('Updated playlist order in memory:', this.playlist.map(s => `${s.title}:${s.position}`));
-  }
-
-  // 2) Build payload (id + new position)
-  const newOrder = this.playlist.map((song, index) => ({
-    id: song.id,
-    position: index
-  }));
-  
-  console.log('Saving new order to backend:', newOrder);
-
-  axios.put('/playlist/reorder', { songs: newOrder })
-    .then(res => {
-      this.playlistMessage = 'Playlist order updated!';
-      this.playlistSuccess = true;
-      console.log('Backend response after reorder:', res.data);
-
-      // Ensure the local playlist matches the backend response
-      if (res.data && res.data.songs && Array.isArray(res.data.songs)) {
-        // Sort songs by position to ensure they're in the right order
-        const orderedSongs = [...res.data.songs].sort((a, b) => a.position - b.position);
-        console.log('Sending to carousel:', orderedSongs.map(s => `${s.title}:${s.position}`));
-        
-        // 3) Dispatch event with the complete ordered song array
-        window.dispatchEvent(new CustomEvent('playlist-order-changed', {
-          detail: orderedSongs
-        }));
-      }
-    })
-    .catch(err => {
-      console.error('Error saving playlist order:', err);
-      this.playlistMessage = 'Failed to save new order.';
-      this.playlistSuccess = false;
-    })
-    .finally(() => {
-      setTimeout(() => this.playlistMessage = '', 3000);
-    });
-},
+    setMusicFeedback(message, success) {
+      this.musicMessage = message;
+      this.musicSuccess = success;
+      setTimeout(() => {
+        this.musicMessage = '';
+      }, 3000);
+    },
 
 
     // ---------------- MAINTENANCE ----------------
@@ -333,6 +280,7 @@ export default {
         .then(res => {
           this.maintenanceMode = res.data.maintenance_mode === 'on';
           this.noticeMaintenanceMode = res.data.notice_maintenance_mode === 'on';
+          this.maintenanceBannerMessage = res.data.notice_maintenance_message || '';
         })
         .catch(err => console.error('Failed to fetch maintenance status:', err));
     },
@@ -554,80 +502,95 @@ export default {
     },
 
     // ---------------- MUSIC ----------------
-    fetchPlaylist() {
-      console.log('Management: Fetching playlist from backend');
-      axios.get('/playlist')
+    fetchMusicTracks() {
+      axios.get('/music')
         .then(res => {
-          console.log('Management: Received playlist data:', res.data);
-          
-          if (!res.data || !res.data.songs || !Array.isArray(res.data.songs)) {
-            console.error('Management: Invalid playlist data format', res.data);
-            this.playlistMessage = 'Error loading playlist - invalid data format';
-            this.playlistSuccess = false;
-            return;
-          }
-          
-          // Sort by position to ensure consistent order
-          this.playlist = [...res.data.songs].sort((a, b) => a.position - b.position);
-          console.log('Management: Sorted playlist:', this.playlist.map(s => `${s.title}:${s.position}`));
+          this.musicTracks = Array.isArray(res.data)
+            ? [...res.data].sort((a, b) => a.position - b.position)
+            : [];
         })
         .catch(err => {
-          console.error('Playlist fetch error:', err);
-          this.playlistMessage = 'Error loading playlist';
-          this.playlistSuccess = false;
+          console.error('Music fetch error:', err);
+          this.setMusicFeedback('Kunne ikke laste bangerlisten.', false);
         })
         .finally(() => {
           this.isLoadingSongs = false;
         });
     },
-    saveSong() {
-      const api = this.editingIndex !== null
-        ? axios.put(`/playlist/${this.playlist[this.editingIndex].id}`, this.newSong)
-        : axios.post('/playlist', this.newSong);
+    handleAddTrack(track) {
+      axios.post('/music', track)
+        .then(res => {
+          const savedTrack = res.data?.track;
+          if (savedTrack) {
+            const nextTracks = savedTrack.featured
+              ? this.musicTracks.map(item => ({ ...item, featured: false }))
+              : this.musicTracks;
 
-      api.then(() => {
-        this.playlistMessage = this.editingIndex !== null ? 'Song updated!' : 'Song added!';
-        this.playlistSuccess = true;
-        this.resetForm();
-        this.fetchPlaylist();
-      })
-      .catch(err => {
-        console.error('Save song error:', err);
-        this.playlistMessage = 'Error saving song.';
-        this.playlistSuccess = false;
-      })
-      .finally(() => setTimeout(() => this.playlistMessage = '', 3000));
-    },
-    resetForm() {
-      this.newSong = { title: '', artist: '', cover: '', soundcloudUrl: '' };
-      this.editingIndex = null;
-    },
-    editSong(id) {
-      const index = this.playlist.findIndex(song => song.id === id);
-      if (index === -1) return;
-      
-      this.newSong = { ...this.playlist[index] };
-      this.editingIndex = index;
-    },
-    deleteSong(id) {
-      const index = this.playlist.findIndex(song => song.id === id);
-      if (index === -1) return;
-      
-      const song = this.playlist[index];
-      if (!confirm(`Delete "${song.title}"?`)) return;
-      
-      axios.delete(`/playlist/${song.id}`)
-        .then(() => {
-          this.playlistMessage = 'Song deleted!';
-          this.playlistSuccess = true;
-          this.fetchPlaylist();
+            this.musicTracks = [...nextTracks, savedTrack].sort((a, b) => a.position - b.position);
+          } else {
+            this.fetchMusicTracks();
+          }
+          this.setMusicFeedback('Banger lagt til.', true);
         })
         .catch(err => {
-          console.error('Delete song error:', err);
-          this.playlistMessage = 'Failed to delete song.';
-          this.playlistSuccess = false;
+          console.error('Add track error:', err);
+          this.setMusicFeedback(err.response?.data?.error || 'Kunne ikke lagre bangeren.', false);
+        });
+    },
+    handleDeleteTrack(trackId) {
+      const track = this.musicTracks.find(item => item.id === trackId);
+      if (track && !confirm(`Delete "${track.title}"?`)) {
+        return;
+      }
+
+      axios.delete(`/music/${trackId}`)
+        .then(() => {
+          this.musicTracks = this.musicTracks.filter(item => item.id !== trackId);
+          this.musicTracks = this.musicTracks.map((item, index) => ({ ...item, position: index }));
+          this.setMusicFeedback('Banger slettet.', true);
         })
-        .finally(() => setTimeout(() => this.playlistMessage = '', 3000));
+        .catch(err => {
+          console.error('Delete track error:', err);
+          this.setMusicFeedback('Kunne ikke slette bangeren.', false);
+        });
+    },
+    handleSetFeatured(trackId) {
+      axios.put(`/music/${trackId}/featured`)
+        .then(res => {
+          this.musicTracks = Array.isArray(res.data?.tracks)
+            ? [...res.data.tracks].sort((a, b) => a.position - b.position)
+            : this.musicTracks.map(track => ({
+                ...track,
+                featured: track.id === trackId,
+              }));
+          this.setMusicFeedback('Featured-banger oppdatert.', true);
+        })
+        .catch(err => {
+          console.error('Set featured error:', err);
+          this.setMusicFeedback('Kunne ikke oppdatere featured-status.', false);
+        });
+    },
+    handleReorderTracks(orderedIds) {
+      const orderedMap = new Map(this.musicTracks.map(track => [track.id, track]));
+      this.musicTracks = orderedIds
+        .map(({ id, position }) => {
+          const track = orderedMap.get(id);
+          return track ? { ...track, position } : null;
+        })
+        .filter(Boolean);
+
+      axios.put('/music/reorder', { tracks: orderedIds })
+        .then(res => {
+          this.musicTracks = Array.isArray(res.data?.tracks)
+            ? [...res.data.tracks].sort((a, b) => a.position - b.position)
+            : this.musicTracks;
+          this.setMusicFeedback('Rekkefolge oppdatert.', true);
+        })
+        .catch(err => {
+          console.error('Reorder tracks error:', err);
+          this.setMusicFeedback('Kunne ikke lagre ny rekkefolge.', false);
+          this.fetchMusicTracks();
+        });
     },
 
     // Team Manager Methods
@@ -818,7 +781,7 @@ export default {
     this.fetchUsersList();
     this.fetchRoles();
     this.fetchUpcomingEvents();
-    this.fetchPlaylist();
+    this.fetchMusicTracks();
     this.fetchTeamMembers();
     this.fetchChangelogEntries();
     
@@ -858,31 +821,9 @@ export default {
     const snackBar = ref(null);
     const { socket } = useWebSocket();
 
-    const initSortable = (element, items, updateCallback) => {
-      if (!element) return;
-
-      new Sortable(element, {
-        animation: 200,
-        easing: "cubic-bezier(0.2, 0, 0, 1)",
-        ghostClass: 'sortable-ghost',
-        dragClass: 'sortable-drag',
-        onStart: () => {
-          document.body.style.cursor = 'grabbing';
-        },
-        onEnd: (evt) => {
-          document.body.style.cursor = '';
-          const newItems = [...items];
-          const [movedItem] = newItems.splice(evt.oldIndex, 1);
-          newItems.splice(evt.newIndex, 0, movedItem);
-          updateCallback(newItems);
-        }
-      });
-    };
-
     return { 
       snackBar, 
-      socket,
-      initSortable
+      socket
     };
   }
 };

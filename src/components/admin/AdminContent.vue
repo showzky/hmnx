@@ -1,183 +1,168 @@
 <template>
-  <!-- Main Content -->
   <main class="admin-content">
     <div class="content-area">
-      <!-- Producer-only tabs -->
-      <!-- ========== Producer: Events Tab ========== -->
       <section v-if="isOnlyProducer && activeTab === 'content'">
-        <div class="event-list-card">
-          <div class="existing-events-header">
-            <h3>Existing Events</h3>
-            <input type="text" :value="searchQuery" @input="$emit('update:searchQuery', $event.target.value)" placeholder="Search Events..." class="search-input" />
+        <div class="sec-head mb24">
+          <div>
+            <div class="sec-title">Hendelser / <em>Oversikt</em></div>
+            <div class="sec-subtitle">Opprett og administrer kommende hendelser.</div>
           </div>
-          <div class="table-container">
-            <table>
+        </div>
+        <div class="panel mb16">
+          <div class="panel-head">
+            <span class="panel-title">Eksisterende hendelser</span>
+            <input
+              type="text"
+              :value="searchQuery"
+              @input="$emit('update:searchQuery', $event.target.value)"
+              placeholder="Sok hendelser..."
+              class="search-input"
+              style="max-width:220px;"
+            />
+          </div>
+          <div class="panel-body" style="padding:0;">
+            <table class="data-table">
               <thead>
                 <tr>
-                  <th style="width: 30px;"></th> <!-- Drag handle column -->
-                  <th>Event Name</th>
-                  <th>Date</th>
-                  <th>Time</th>
-                  <th style="width: 100px;">Actions</th>
+                  <th style="width:30px;"></th>
+                  <th>Navn</th>
+                  <th>Dato</th>
+                  <th>Tid</th>
+                  <th style="width:90px;">Handlinger</th>
                 </tr>
               </thead>
-              <tbody v-if="upcomingEventsData && upcomingEventsData.length" ref="eventsTable" class="events-table">
-                <tr v-for="(element, index) in upcomingEventsData" :key="element.id">
-                  <td class="drag-handle" style="cursor: grab;">☰</td>
+              <tbody v-if="upcomingEventsData && upcomingEventsData.length">
+                <tr v-for="element in upcomingEventsData" :key="element.id">
+                  <td class="drag-handle">|||</td>
                   <td>{{ element.event_name }}</td>
                   <td>{{ formatDate(element.event_date) }}</td>
                   <td>{{ formatTime(element.event_time) }}</td>
                   <td>
-                    <button @click="$emit('deleteEvent', element.id)" class="delete-button">Delete</button>
+                    <button class="btn btn-danger btn-sm" @click="$emit('deleteEvent', element.id)">
+                      Slett
+                    </button>
                   </td>
                 </tr>
               </tbody>
               <tbody v-else>
-                <tr>
-                  <td colspan="5" class="no-events">No events found</td>
-                </tr>
+                <tr><td colspan="5" style="color:var(--muted);font-style:italic;">Ingen hendelser funnet.</td></tr>
               </tbody>
             </table>
           </div>
-          
         </div>
-        <div class="create-event-card">
-          <h3>Create New Event</h3>
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="event-name">Name</label>
-              <input 
-                type="text" 
-                id="event-name" 
-                :value="newEvent.event_name" 
-                @input="updateNewEventField('event_name', $event.target.value)" 
-                placeholder="Event Title" />
+        <div class="panel">
+          <div class="panel-head"><span class="panel-title">Opprett ny hendelse</span></div>
+          <div class="panel-body">
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Navn</label>
+                <input
+                  class="form-input"
+                  type="text"
+                  :value="newEvent.event_name"
+                  @input="updateNewEventField('event_name', $event.target.value)"
+                  placeholder="Hendelsesnavn"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Dato</label>
+                <input
+                  class="form-input"
+                  type="date"
+                  :value="newEvent.event_date"
+                  @input="updateNewEventField('event_date', $event.target.value)"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tid</label>
+                <input
+                  class="form-input"
+                  type="time"
+                  :value="newEvent.event_time"
+                  @input="updateNewEventField('event_time', $event.target.value)"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Mal</label>
+                <select
+                  class="form-select"
+                  :value="newEvent.template_name"
+                  @input="updateNewEventField('template_name', $event.target.value)"
+                  required
+                >
+                  <option value="" disabled>Velg mal</option>
+                  <option value="template1">Template 1 (Bilde-fokus)</option>
+                  <option value="template2">Template 2 (Tekst-fokus)</option>
+                </select>
+              </div>
             </div>
             <div class="form-group">
-              <label for="event-date">Date</label>
-              <input 
-                type="date" 
-                id="event-date" 
-                :value="newEvent.event_date" 
-                @input="updateNewEventField('event_date', $event.target.value)" />
+              <label class="form-label">Beskrivelse (valgfritt)</label>
+              <textarea
+                class="form-textarea"
+                :value="newEvent.event_description"
+                @input="updateNewEventField('event_description', $event.target.value)"
+                placeholder="Kort hendelsesinfo..."
+                rows="3"
+              ></textarea>
             </div>
             <div class="form-group">
-              <label for="event-time">Time</label>
-              <input 
-                type="time" 
-                id="event-time" 
-                :value="newEvent.event_time" 
-                @input="updateNewEventField('event_time', $event.target.value)" />
+              <label class="file-upload-label">
+                <span>Velg bilde</span>
+                <input
+                  type="file"
+                  @change="$emit('handleImageUpload', $event)"
+                  accept="image/*"
+                  class="hidden-file-input"
+                />
+              </label>
             </div>
-            
             <div class="form-group">
-              <label for="template_name">Template</label>
-              <select 
-                id="template_name" 
-                :value="newEvent.template_name" 
-                @input="updateNewEventField('template_name', $event.target.value)" 
-                required>
-                <option value="" disabled>Select a Template</option>
-                <option value="template1">Template 1 (Image-Focused)</option>
-                <option value="template2">Template 2 (Text-Focused)</option>
-              </select>
+              <label class="custom-checkbox">
+                <input
+                  type="checkbox"
+                  :checked="newEvent.notify_users"
+                  @change="updateNewEventField('notify_users', $event.target.checked)"
+                />
+                <span style="color:var(--muted);font-size:13px;margin-left:6px;">Varsle alle brukere</span>
+              </label>
             </div>
+            <button class="btn btn-red" @click="$emit('createEvent')">Opprett</button>
+            <div
+              v-if="createEventMessage"
+              class="form-message"
+              :class="{ success: createEventSuccess, error: !createEventSuccess }"
+              style="margin-top:10px;"
+            >
+              {{ createEventMessage }}
+            </div>
+          </div>
+        </div>
+      </section>
 
-          </div>
-          <div class="form-group full-width">
-            <label for="event-description">Description (Optional)</label>
-            <textarea 
-              id="event-description" 
-              :value="newEvent.event_description" 
-              @input="updateNewEventField('event_description', $event.target.value)" 
-              placeholder="Short event details..."></textarea>
-          </div>
-          <div class="form-group full-width file-upload-group">
-            <label for="event_image" class="file-upload-label">
-              <span>Choose an Image</span>
-              <input type="file" id="event_image" @change="$emit('handleImageUpload', $event)" accept="image/*" class="hidden-file-input" />
-            </label>
-          </div>
-          <div class="checkbox-group">
-            <label class="custom-checkbox">
-              <input 
-                type="checkbox" 
-                :checked="newEvent.notify_users" 
-                @change="updateNewEventField('notify_users', $event.target.checked)" />
-              Notify all users
-            </label>
-          </div>
-          <button @click="$emit('createEvent')" class="create-event-button">Create</button>
-          <div v-if="createEventMessage" class="form-message" :class="{ success: createEventSuccess, error: !createEventSuccess }">
-            {{ createEventMessage }}
-          </div>
-        </div>
-      </section>
-      <!-- ========== Producer: Music Tab ========== -->
-      <section v-if="isOnlyProducer && activeTab === 'music'" class="music-admin">
-        <div class="data-widget">
-          <h3>Manage Bangerfabrikken Playlist</h3>
-          <table class="playlist-table">
-            <thead>
-              <tr>
-                <th style="width: 30px;"></th>
-                <th>Title</th>
-                <th>Artist</th>
-                <th>SoundCloud URL</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody ref="playlistTable" class="playlist-table">
-              <tr v-for="(element, index) in playlist" :key="element.id">
-                <td class="drag-handle" style="cursor: grab;">☰</td>
-                <td>{{ element.title }}</td>
-                <td>{{ element.artist }}</td>
-                <td>{{ element.soundcloudUrl }}</td>
-                <td>
-                  <button class="delete-song" @click="$emit('deleteSong', element.id)">Delete</button>
-                  <button class="edit-song" @click="$emit('editSong', element.id)">Edit</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="form-group-music">
-            <label>Title</label>
-            <input :value="newSong.title" @input="updateNewSongField('title', $event.target.value)" />
-          </div>
-          <div class="form-group-music">
-            <label>Artist</label>
-            <input :value="newSong.artist" @input="updateNewSongField('artist', $event.target.value)" />
-          </div>
-          <div class="form-group-music">
-            <label>Cover URL</label>
-            <input :value="newSong.cover" @input="updateNewSongField('cover', $event.target.value)" />
-          </div>
-          <div class="form-group-music">
-            <label>SoundCloud URL</label>
-            <input :value="newSong.soundcloudUrl" @input="updateNewSongField('soundcloudUrl', $event.target.value)" />
-          </div>
-          <button @click="$emit('saveSong')" class="create-role-button">
-            {{ editingIndex !== null ? 'Update Song' : 'Add Song' }}
-          </button>
-          <div v-if="playlistMessage" class="form-message" :class="{ success: playlistSuccess, error: !playlistSuccess }">
-            {{ playlistMessage }}
-          </div>
-        </div>
-      </section>
-      <!-- ========== Admin/Developer Tabs ========== -->
+      <MusicTab
+        v-if="activeTab === 'music'"
+        :tracks="musicTracks"
+        :message="musicMessage"
+        :messageSuccess="musicSuccess"
+        @addTrack="$emit('addTrack', $event)"
+        @deleteTrack="$emit('deleteTrack', $event)"
+        @setFeatured="$emit('setFeatured', $event)"
+        @reorderTracks="$emit('reorderTracks', $event)"
+      />
+
       <template v-if="!isOnlyProducer">
-        <!-- Dashboard Tab -->
-        <DashboardTab 
+        <DashboardTab
           v-if="activeTab === 'dashboard'"
+          :displayName="displayName"
+          :totalUsers="usersList.length"
           :upcomingEventsData="upcomingEventsData"
           :widgets="widgets"
         />
-        
-        <!-- System Info Tab -->
+
         <SystemTab v-if="activeTab === 'system'" />
-        
-        <!-- Events Tab -->
-        <EventsTab 
+
+        <EventsTab
           v-if="activeTab === 'content'"
           :searchQuery="searchQuery"
           :upcomingEventsData="upcomingEventsData"
@@ -190,30 +175,12 @@
           @update:searchQuery="$emit('update:searchQuery', $event)"
           @update:newEvent="$emit('update:newEvent', $event)"
         />
-        
-        <!-- Music Tab -->
-        <MusicTab 
-          v-if="activeTab === 'music'"
-          :playlist="playlist"
-          :newSong="newSong"
-          :editingIndex="editingIndex"
-          :playlistMessage="playlistMessage"
-          :playlistSuccess="playlistSuccess"
-          @saveSong="$emit('saveSong')"
-          @deleteSong="$emit('deleteSong', $event)"
-          @editSong="$emit('editSong', $event)"
-          @playlistDragEnd="$emit('playlistDragEnd', $event)"
-          @update:newSong="$emit('update:newSong', $event)"
-        />
-        
-        <!-- Shop Items Tab -->
+
         <ShopTab v-if="activeTab === 'shop'" />
-        
-        <!-- News Management Tab -->
+
         <NewsTab v-if="activeTab === 'news'" />
-        
-        <!-- User Roles Tab -->
-        <UsersTab 
+
+        <UsersTab
           v-if="activeTab === 'users'"
           :userRoles="userRoles"
           :usersList="usersList"
@@ -240,9 +207,8 @@
           @update:rolesToRemove="$emit('update:rolesToRemove', $event)"
           @update:newRole="$emit('update:newRole', $event)"
         />
-        
-        <!-- Team Manager Tab -->
-        <TeamTab 
+
+        <TeamTab
           v-if="activeTab === 'team'"
           :teamMembers="teamMembers"
           :defaultAvatar="defaultAvatar"
@@ -254,9 +220,8 @@
           @triggerAvatarUpload="$emit('triggerAvatarUpload', $event)"
           @update:teamMembers="$emit('update:teamMembers', $event)"
         />
-        
-        <!-- Maintenance Settings Tab -->
-        <SettingsTab 
+
+        <SettingsTab
           v-if="activeTab === 'settings'"
           :maintenanceMode="maintenanceMode"
           :noticeMaintenanceMode="noticeMaintenanceMode"
@@ -271,8 +236,7 @@
           @update:noticeMaintenanceMode="$emit('update:noticeMaintenanceMode', $event)"
           @update:maintenanceBannerMessage="$emit('update:maintenanceBannerMessage', $event)"
         />
-        
-        <!-- Changelog Management Tab -->
+
         <ChangeLogTab
           v-if="activeTab === 'changelog'"
           :newChangelog="newChangelog"
@@ -283,8 +247,7 @@
           @deleteChangelogEntry="$emit('deleteChangelogEntry', $event)"
           @update:newChangelog="$emit('update:newChangelog', $event)"
         />
-        
-        <!-- Achievement Tab -->
+
         <AchievementTab v-if="activeTab === 'achievements'" :achievements="achievements" />
       </template>
     </div>
@@ -292,32 +255,31 @@
 </template>
 
 <script>
+import AchievementTab from './tabs/AchievementTab.vue';
+import ChangeLogTab from './tabs/ChangeLogTab.vue';
 import DashboardTab from './tabs/DashboardTab.vue';
-import SystemTab from './tabs/SystemTab.vue';
 import EventsTab from './tabs/EventsTab.vue';
 import MusicTab from './tabs/MusicTab.vue';
-import ShopTab from './tabs/ShopTab.vue';
 import NewsTab from './tabs/NewsTab.vue';
-import UsersTab from './tabs/UsersTab.vue';
-import TeamTab from './tabs/TeamTab.vue';
 import SettingsTab from './tabs/SettingsTab.vue';
-import ChangeLogTab from './tabs/ChangeLogTab.vue';
-import AchievementTab from './tabs/AchievementTab.vue';
-import Sortable from 'sortablejs';
+import ShopTab from './tabs/ShopTab.vue';
+import SystemTab from './tabs/SystemTab.vue';
+import TeamTab from './tabs/TeamTab.vue';
+import UsersTab from './tabs/UsersTab.vue';
 
 export default {
   components: {
+    AchievementTab,
+    ChangeLogTab,
     DashboardTab,
-    SystemTab,
     EventsTab,
     MusicTab,
-    ShopTab,
     NewsTab,
-    UsersTab,
-    TeamTab,
     SettingsTab,
-    ChangeLogTab,
-    AchievementTab
+    ShopTab,
+    SystemTab,
+    TeamTab,
+    UsersTab,
   },
   props: {
     displayName: { type: String, default: '' },
@@ -325,26 +287,36 @@ export default {
     activeTab: { type: String, default: 'dashboard' },
     searchQuery: { type: String, default: '' },
     upcomingEventsData: { type: Array, default: () => [] },
-    newEvent: { type: Object, default: () => ({ event_name:'', event_date:'', event_time:'', event_description:'', template_name:'', event_image:null, notify_users:false }) },
-    playlist: { type: Array, default: () => [] },
-    editingIndex: { type: Number, default: null },
-    playlistMessage: { type: String, default: '' },
-    playlistSuccess: { type: Boolean, default: false },
+    newEvent: {
+      type: Object,
+      default: () => ({
+        event_name: '',
+        event_date: '',
+        event_time: '',
+        event_description: '',
+        template_name: '',
+        event_image: null,
+        notify_users: false,
+      }),
+    },
+    musicTracks: { type: Array, default: () => [] },
+    musicMessage: { type: String, default: '' },
+    musicSuccess: { type: Boolean, default: false },
     createEventMessage: { type: String, default: '' },
     createEventSuccess: { type: Boolean, default: false },
     userRoles: { type: Array, default: () => [] },
     usersList: { type: Array, default: () => [] },
-    userRoleUpdate: { type: Object, default: () => ({ selectedUser:'', newRole:'' }) },
+    userRoleUpdate: { type: Object, default: () => ({ selectedUser: '', newRole: '' }) },
     availableRoles: { type: Array, default: () => [] },
     updateUserMessage: { type: String, default: '' },
     updateUserSuccess: { type: Boolean, default: false },
     selectedUserRoles: { type: Array, default: () => [] },
-    userRoleRemove: { type: Object, default: () => ({ selectedUser:'' }) },
+    userRoleRemove: { type: Object, default: () => ({ selectedUser: '' }) },
     selectedUserRolesToRemove: { type: Array, default: () => [] },
     rolesToRemove: { type: Array, default: () => [] },
     removeRoleMessage: { type: String, default: '' },
     removeRoleSuccess: { type: Boolean, default: false },
-    newRole: { type: Object, default: () => ({ name:'', badge_icon:'', badge_color:'' }) },
+    newRole: { type: Object, default: () => ({ name: '', badge_icon: '', badge_color: '' }) },
     createRoleMessage: { type: String, default: '' },
     createRoleSuccess: { type: Boolean, default: false },
     teamMembers: { type: Array, default: () => [] },
@@ -358,62 +330,63 @@ export default {
     maintenanceSuccess: { type: Boolean, default: false },
     noticeMaintenanceMessage: { type: String, default: '' },
     noticeMaintenanceSuccess: { type: Boolean, default: false },
-    newChangelog: { type: Object, default: () => ({ version:'', date:'', added:'', changed:'' }) },
+    newChangelog: { type: Object, default: () => ({ version: '', date: '', added: '', changed: '' }) },
     changelogEntries: { type: Array, default: () => [] },
     changelogMessage: { type: String, default: '' },
     changelogSuccess: { type: Boolean, default: false },
     widgets: { type: Array, default: () => [] },
-    newSong: { type: Object, default: () => ({ title:'', artist:'', cover:'', soundcloudUrl:'' }) },
-    achievements: { type: Array, default: () => ([
-      {
-        id: 1,
-        title: '10 Hours Active',
-        description: 'Be active for 10 hours!',
-        svg: '<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="#FFD700" stroke="#E5C100" stroke-width="4"/><text x="32" y="40" text-anchor="middle" font-size="24" fill="#222">10h</text></svg>',
-        achieved: false
-      },
-      {
-        id: 2,
-        title: 'SVG URL Example',
-        description: 'This uses an SVG URL.',
-        svg: '/assets/achievements/example.svg',
-        achieved: true
-      }
-    ]) }
+    achievements: {
+      type: Array,
+      default: () => ([
+        {
+          id: 1,
+          title: '10 Hours Active',
+          description: 'Be active for 10 hours!',
+          svg: '<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="#FFD700" stroke="#E5C100" stroke-width="4"/><text x="32" y="40" text-anchor="middle" font-size="24" fill="#222">10h</text></svg>',
+          achieved: false,
+        },
+        {
+          id: 2,
+          title: 'SVG URL Example',
+          description: 'This uses an SVG URL.',
+          svg: '/assets/achievements/example.svg',
+          achieved: true,
+        },
+      ]),
+    },
   },
   emits: [
-    'createEvent',
-    'deleteEvent',
-    'handleImageUpload',
-    'saveSong',
-    'deleteSong',
-    'editSong',
-    'updateUserRole',
-    'fetchUserRolesToRemove',
-    'removeSelectedRoles',
-    'createRole',
-    'deleteRole',
-    'saveTeamMember',
-    'deleteTeamMember',
     'addNewTeamMember',
-    'triggerAvatarUpload',
+    'addTrack',
+    'createEvent',
+    'createRole',
+    'deleteChangelogEntry',
+    'deleteEvent',
+    'deleteRole',
+    'deleteTeamMember',
+    'deleteTrack',
+    'fetchUserRolesToRemove',
+    'handleImageUpload',
     'onToggleMaintenance',
     'onToggleNoticeMaintenance',
+    'removeSelectedRoles',
+    'reorderTracks',
+    'saveTeamMember',
+    'setFeatured',
     'submitChangelogEntry',
-    'deleteChangelogEntry',
-    'playlistDragEnd',
-    'update:searchQuery',
-    'update:newEvent',
-    'update:newSong',
-    'update:userRoleUpdate',
-    'update:userRoleRemove',
-    'update:rolesToRemove',
-    'update:newRole',
-    'update:teamMembers',
-    'update:maintenanceMode',
-    'update:noticeMaintenanceMode',
+    'triggerAvatarUpload',
     'update:maintenanceBannerMessage',
-    'update:newChangelog'
+    'update:maintenanceMode',
+    'update:newChangelog',
+    'update:newEvent',
+    'update:newRole',
+    'update:noticeMaintenanceMode',
+    'update:rolesToRemove',
+    'update:searchQuery',
+    'update:teamMembers',
+    'update:userRoleRemove',
+    'update:userRoleUpdate',
+    'updateUserRole',
   ],
   methods: {
     formatDate(dateString) {
@@ -426,57 +399,6 @@ export default {
       const updatedEvent = { ...this.newEvent, [field]: value };
       this.$emit('update:newEvent', updatedEvent);
     },
-    updateNewSongField(field, value) {
-      const updatedSong = { ...this.newSong, [field]: value };
-      this.$emit('update:newSong', updatedSong);
-    }
   },
-  watch: {
-    activeTab(newTab) {
-      if (this.isOnlyProducer && newTab === 'music') {
-        this.$nextTick(() => {
-          const playlistTable = this.$refs.playlistTable;
-          if (playlistTable && !playlistTable._sortable) {
-            playlistTable._sortable = new Sortable(playlistTable, {
-              swap: true,
-              swapClass: 'highlighted',
-              animation: 200,
-              easing: "cubic-bezier(0.2, 0, 0, 1)",
-              ghostClass: 'sortable-ghost',
-              dragClass: 'sortable-drag',
-              handle: '.drag-handle',
-              onEnd: (evt) => {
-                this.$emit('playlistDragEnd', evt);
-              }
-            });
-            console.log("Sortable initialized for producer playlist on tab switch");
-          }
-        });
-      }
-    }
-  },
-  mounted() {
-    this.$nextTick(() => {
-      if (this.isOnlyProducer && this.activeTab === 'music') {
-        const playlistTable = this.$refs.playlistTable;
-        if (playlistTable && !playlistTable._sortable) {
-          playlistTable._sortable = new Sortable(playlistTable, {
-            swap: true,
-            swapClass: 'highlighted',
-            animation: 200,
-            easing: "cubic-bezier(0.2, 0, 0, 1)",
-            ghostClass: 'sortable-ghost',
-            dragClass: 'sortable-drag',
-            handle: '.drag-handle',
-            onEnd: (evt) => {
-              this.$emit('playlistDragEnd', evt);
-            }
-          });
-          console.log("Sortable initialized for producer playlist table");
-        }
-      }
-    });
-  }
-}
-
+};
 </script>

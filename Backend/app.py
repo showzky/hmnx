@@ -26,6 +26,7 @@ from enum import Enum
 import defusedxml.ElementTree as ET
 import json
 from pathlib import Path
+from soundcloud_routes import soundcloud_bp
 
 # In-memory store for playlist data
 playlist_data = []
@@ -223,6 +224,7 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
+app.register_blueprint(soundcloud_bp)
 
 
 import os
@@ -405,6 +407,127 @@ def set_setting(key, value):
     db.session.commit()
 
 
+def can_manage_music(user):
+    if not user:
+        return False
+    return any(role.name.lower() in ['admin', 'developer', 'producer'] for role in user.roles)
+
+
+def serialize_music_song(song):
+    track_url = song.url or song.soundcloudUrl or ''
+    author_name = song.author_name or song.artist or ''
+    thumbnail_url = song.thumbnail_url or song.cover or ''
+
+    return {
+        'id': song.id,
+        'title': song.title,
+        'url': track_url,
+        'author_name': author_name,
+        'thumbnail_url': thumbnail_url,
+        'duration': song.duration or '',
+        'featured': bool(song.featured),
+        'position': song.position or 0,
+        # Compatibility keys during migration
+        'artist': author_name,
+        'cover': thumbnail_url,
+        'soundcloudUrl': track_url,
+    }
+
+
+def serialize_playlist_song(song):
+    payload = serialize_music_song(song)
+    return {
+        'id': payload['id'],
+        'title': payload['title'],
+        'artist': payload['artist'],
+        'cover': payload['cover'],
+        'soundcloudUrl': payload['soundcloudUrl'],
+        'position': payload['position'],
+        'featured': payload['featured'],
+        'duration': payload['duration'],
+        'author_name': payload['author_name'],
+        'thumbnail_url': payload['thumbnail_url'],
+        'url': payload['url'],
+    }
+
+
+def get_ordered_songs():
+    return Song.query.order_by(Song.position.asc(), Song.id.asc()).all()
+
+
+def normalize_music_payload(data):
+    return {
+        'title': (data.get('title') or '').strip(),
+        'url': (data.get('url') or data.get('soundcloudUrl') or '').strip(),
+        'author_name': (data.get('author_name') or data.get('artist') or '').strip(),
+        'thumbnail_url': (data.get('thumbnail_url') or data.get('cover') or '').strip(),
+        'duration': (data.get('duration') or '').strip(),
+        'featured': bool(data.get('featured', False)),
+    }
+
+
+def get_driftsmelding_history():
+    history = []
+    for index in range(1, 4):
+        prefix = f'notice_maintenance_history_{index}'
+        title = get_setting(f'{prefix}_title', '')
+        message = get_setting(f'{prefix}_message', '')
+        updated_at = get_setting(f'{prefix}_updated_at', '')
+        ref = get_setting(f'{prefix}_ref', '')
+        if title or message:
+            history.append({
+                'title': title,
+                'message': message,
+                'updated_at': updated_at,
+                'ref': ref,
+            })
+    return history
+
+
+def set_driftsmelding_history(history_items):
+    for index in range(1, 4):
+        item = history_items[index - 1] if index - 1 < len(history_items) else None
+        prefix = f'notice_maintenance_history_{index}'
+        set_setting(f'{prefix}_title', item.get('title', '') if item else '')
+        set_setting(f'{prefix}_message', item.get('message', '') if item else '')
+        set_setting(f'{prefix}_updated_at', item.get('updated_at', '') if item else '')
+        set_setting(f'{prefix}_ref', item.get('ref', '') if item else '')
+
+
+def build_driftsmelding_feed():
+    current_message = get_setting('notice_maintenance_message', '')
+    current_title = get_setting('notice_maintenance_title', '')
+    current_updated_at = get_setting('notice_maintenance_updated_at', '')
+    current_ref = get_setting('notice_maintenance_ref', '')
+
+    items = []
+    if current_message:
+        items.append({
+            'title': current_title or 'Ny driftsmelding',
+            'body': current_message,
+            'message': current_message,
+            'date': current_updated_at,
+            'updated_at': current_updated_at,
+            'ref': current_ref or 'HMN-MSG-001',
+            'meta': 'nyeste driftsmelding',
+            'is_featured': True,
+        })
+
+    for item in get_driftsmelding_history():
+        items.append({
+            'title': item.get('title') or 'Tidligere driftsmelding',
+            'body': item.get('message', ''),
+            'message': item.get('message', ''),
+            'date': item.get('updated_at', ''),
+            'updated_at': item.get('updated_at', ''),
+            'ref': item.get('ref', ''),
+            'meta': 'tidligere melding',
+            'is_featured': False,
+        })
+
+    return items
+
+
 
 #Socket
 class DashboardNamespace(Namespace):
@@ -539,6 +662,11 @@ class Song(db.Model):
     artist = db.Column(db.String(255), nullable=True)
     cover = db.Column(db.String(255), nullable=True)          # New column for cover image URL
     soundcloudUrl = db.Column(db.String(255), nullable=True)   # New column for SoundCloud URL
+    url = db.Column(db.String(255), nullable=True)
+    author_name = db.Column(db.String(255), nullable=True)
+    thumbnail_url = db.Column(db.String(255), nullable=True)
+    duration = db.Column(db.String(32), nullable=True)
+    featured = db.Column(db.Boolean, default=False, nullable=False)
     upload_timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     position = db.Column(db.Integer, default=0)
 
@@ -2457,31 +2585,153 @@ def update_fitte_points():
 
 
 
+@app.route('/api/music', methods=['GET'])
+def get_music():
+    return jsonify([serialize_music_song(song) for song in get_ordered_songs()]), 200
+
+
+@app.route('/api/music', methods=['POST'])
+@jwt_required()
+def create_music_track():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if not can_manage_music(user):
+        return jsonify({"msg": "Unauthorized"}), 403
+
+    data = request.get_json() or {}
+    normalized = normalize_music_payload(data)
+    if not normalized['title'] or not normalized['url']:
+        return jsonify({"msg": "Title and url are required"}), 400
+
+    max_position = db.session.query(db.func.max(Song.position)).scalar()
+    next_position = (max_position or 0) + 1 if max_position is not None else 0
+
+    if normalized['featured']:
+        Song.query.update({Song.featured: False})
+
+    new_song = Song(
+        title=normalized['title'],
+        artist=normalized['author_name'],
+        cover=normalized['thumbnail_url'],
+        soundcloudUrl=normalized['url'],
+        url=normalized['url'],
+        author_name=normalized['author_name'],
+        thumbnail_url=normalized['thumbnail_url'],
+        duration=normalized['duration'],
+        featured=normalized['featured'],
+        position=next_position,
+    )
+    db.session.add(new_song)
+    db.session.commit()
+
+    return jsonify({
+        "msg": "Track added",
+        "track": serialize_music_song(new_song),
+    }), 201
+
+
+@app.route('/api/music/reorder', methods=['PUT'])
+@jwt_required()
+def reorder_music_tracks():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if not can_manage_music(user):
+        return jsonify({"msg": "Unauthorized"}), 403
+
+    try:
+        data = request.get_json() or {}
+        tracks = data.get('tracks', [])
+        if not tracks:
+            return jsonify({"msg": "No tracks provided for reordering"}), 400
+
+        for track_data in tracks:
+            if not isinstance(track_data, dict) or 'id' not in track_data or 'position' not in track_data:
+                return jsonify({"msg": "Invalid track data format"}), 400
+
+            song = Song.query.get(track_data['id'])
+            if song:
+                song.position = track_data['position']
+                db.session.add(song)
+
+        db.session.commit()
+        ordered_songs = get_ordered_songs()
+        return jsonify({
+            "msg": "Music reordered successfully",
+            "tracks": [serialize_music_song(song) for song in ordered_songs],
+        }), 200
+    except Exception as exc:
+        db.session.rollback()
+        print(f"Error reordering music: {exc}")
+        return jsonify({"msg": "Failed to reorder music"}), 500
+
+
+@app.route('/api/music/<int:song_id>/featured', methods=['PUT'])
+@jwt_required()
+def set_music_track_featured(song_id):
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if not can_manage_music(user):
+        return jsonify({"msg": "Unauthorized"}), 403
+
+    song = Song.query.get(song_id)
+    if not song:
+        return jsonify({"msg": "Track not found"}), 404
+
+    Song.query.update({Song.featured: False})
+    song.featured = True
+    db.session.add(song)
+    db.session.commit()
+
+    return jsonify({
+        "msg": "Featured track updated",
+        "tracks": [serialize_music_song(item) for item in get_ordered_songs()],
+    }), 200
+
+
+@app.route('/api/music/<int:song_id>', methods=['DELETE'])
+@jwt_required()
+def delete_music_track(song_id):
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if not can_manage_music(user):
+        return jsonify({"msg": "Unauthorized"}), 403
+
+    song = Song.query.get(song_id)
+    if not song:
+        return jsonify({"msg": "Track not found"}), 404
+
+    db.session.delete(song)
+    db.session.commit()
+
+    ordered_songs = get_ordered_songs()
+    for index, item in enumerate(ordered_songs):
+        if item.position != index:
+            item.position = index
+            db.session.add(item)
+    db.session.commit()
+
+    return jsonify({"msg": "Track deleted"}), 200
+
+
 @app.route('/api/playlist', methods=['GET'])
 def get_playlist():
-    songs = Song.query.order_by(Song.position.asc()).all()
-    songs_list = []
-    for song in songs:
-        songs_list.append({
-            "id": song.id,
-            "title": song.title,
-            "artist": song.artist,
-            "cover": song.cover,
-            "soundcloudUrl": song.soundcloudUrl,
-            "position": song.position
-        })
-    return jsonify({"songs": songs_list}), 200
+    return jsonify({"songs": [serialize_playlist_song(song) for song in get_ordered_songs()]}), 200
+
 
 @app.route('/api/playlist/reorder', methods=['PUT'])
 @jwt_required()
 def reorder_playlist():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if not can_manage_music(user):
+        return jsonify({"msg": "Unauthorized"}), 403
+
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         songs = data.get('songs', [])
-        
         if not songs:
             return jsonify({"msg": "No songs provided for reordering"}), 400
-            
+
         for song_data in songs:
             if not isinstance(song_data, dict) or 'id' not in song_data or 'position' not in song_data:
                 return jsonify({"msg": "Invalid song data format"}), 400
@@ -2490,26 +2740,16 @@ def reorder_playlist():
             if song:
                 song.position = song_data['position']
                 db.session.add(song)
-        
+
         db.session.commit()
-        
-        songs_in_db = Song.query.order_by(Song.position.asc()).all()
-        
+        songs_in_db = get_ordered_songs()
         return jsonify({
             "msg": "Playlist reordered successfully",
-            "songs": [{
-                "id": s.id,
-                "title": s.title,
-                "artist": s.artist,
-                "cover": s.cover,
-                "soundcloudUrl": s.soundcloudUrl,
-                "position": s.position
-            } for s in songs_in_db]
+            "songs": [serialize_playlist_song(song) for song in songs_in_db],
         }), 200
-        
-    except Exception as e:
+    except Exception as exc:
         db.session.rollback()
-        print(f"Error reordering playlist: {e}")
+        print(f"Error reordering playlist: {exc}")
         return jsonify({"msg": "Failed to reorder playlist"}), 500
 
 
@@ -2661,64 +2901,90 @@ def list_purchased_items():
 
 
 @app.route('/api/playlist', methods=['POST'])
+@jwt_required()
 def add_song():
-    data = request.get_json()
-    title = data.get("title")
-    if not title:
-        return jsonify({"msg": "Title is required"}), 400
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if not can_manage_music(user):
+        return jsonify({"msg": "Unauthorized"}), 403
 
-    artist = data.get("artist")
-    cover = data.get("cover")
-    soundcloudUrl = data.get("soundcloudUrl")
-    
+    data = request.get_json() or {}
+    normalized = normalize_music_payload(data)
+    if not normalized['title'] or not normalized['url']:
+        return jsonify({"msg": "Title and SoundCloud URL are required"}), 400
+
+    max_position = db.session.query(db.func.max(Song.position)).scalar()
+    next_position = (max_position or 0) + 1 if max_position is not None else 0
+
     new_song = Song(
-        title=title,
-        artist=artist,
-        cover=cover,
-        soundcloudUrl=soundcloudUrl
+        title=normalized['title'],
+        artist=normalized['author_name'],
+        cover=normalized['thumbnail_url'],
+        soundcloudUrl=normalized['url'],
+        url=normalized['url'],
+        author_name=normalized['author_name'],
+        thumbnail_url=normalized['thumbnail_url'],
+        duration=normalized['duration'],
+        featured=normalized['featured'],
+        position=next_position,
     )
+
+    if normalized['featured']:
+        Song.query.update({Song.featured: False})
+
     db.session.add(new_song)
     db.session.commit()
-    
+
     return jsonify({
         "msg": "Song added",
-        "song": {
-            "id": new_song.id,
-            "title": new_song.title,
-            "artist": new_song.artist,
-            "cover": new_song.cover,
-            "soundcloudUrl": new_song.soundcloudUrl
-        }
+        "song": serialize_playlist_song(new_song),
     }), 201
 
 
 @app.route('/api/playlist/<int:song_id>', methods=['PUT'])
+@jwt_required()
 def update_playlist_song(song_id):
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if not can_manage_music(user):
+        return jsonify({"msg": "Unauthorized"}), 403
+
     song = Song.query.get(song_id)
     if not song:
         return jsonify({"msg": "Song not found"}), 404
 
-    data = request.get_json()
-    song.title = data.get("title", song.title)
-    song.artist = data.get("artist", song.artist)
-    song.cover = data.get("cover", song.cover)
-    song.soundcloudUrl = data.get("soundcloudUrl", song.soundcloudUrl)
+    data = request.get_json() or {}
+    normalized = normalize_music_payload(data)
+
+    song.title = normalized['title'] or song.title
+    song.artist = normalized['author_name'] or song.artist
+    song.cover = normalized['thumbnail_url'] or song.cover
+    song.soundcloudUrl = normalized['url'] or song.soundcloudUrl
+    song.url = normalized['url'] or song.url
+    song.author_name = normalized['author_name'] or song.author_name
+    song.thumbnail_url = normalized['thumbnail_url'] or song.thumbnail_url
+    song.duration = normalized['duration'] or song.duration
+
+    if normalized['featured']:
+        Song.query.update({Song.featured: False})
+        song.featured = True
+
     db.session.commit()
 
     return jsonify({
         "msg": "Song updated",
-        "song": {
-            "id": song.id,
-            "title": song.title,
-            "artist": song.artist,
-            "cover": song.cover,
-            "soundcloudUrl": song.soundcloudUrl
-        }
+        "song": serialize_playlist_song(song),
     }), 200
 
 
 @app.route('/api/playlist/<int:song_id>', methods=['DELETE'])
+@jwt_required()
 def delete_playlist_song(song_id):
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if not can_manage_music(user):
+        return jsonify({"msg": "Unauthorized"}), 403
+
     song = Song.query.get(song_id)
     if not song:
         return jsonify({"msg": "Song not found"}), 404
@@ -2751,10 +3017,16 @@ def set_maintenance_mode():
     # Emit updated maintenance status to all clients
     notice_mode = get_setting('notice_maintenance_mode', 'off')
     notice_message = get_setting('notice_maintenance_message', '')
+    notice_title = get_setting('notice_maintenance_title', '')
+    notice_updated_at = get_setting('notice_maintenance_updated_at', '')
+    notice_ref = get_setting('notice_maintenance_ref', '')
     socketio.emit('maintenance_status', {
         'maintenance_mode': mode,
         'notice_maintenance_mode': notice_mode,
-        'notice_maintenance_message': notice_message
+        'notice_maintenance_message': notice_message,
+        'notice_maintenance_title': notice_title,
+        'notice_maintenance_updated_at': notice_updated_at,
+        'notice_maintenance_ref': notice_ref
     })
     
     return jsonify({"msg": f"Maintenance mode set to {mode}"}), 200
@@ -2764,9 +3036,15 @@ def set_maintenance_mode():
 def get_notice_maintenance_mode():
     value = get_setting('notice_maintenance_mode', 'off')
     message = get_setting('notice_maintenance_message', '')
+    title = get_setting('notice_maintenance_title', '')
+    updated_at = get_setting('notice_maintenance_updated_at', '')
+    ref = get_setting('notice_maintenance_ref', '')
     return jsonify({
         "notice_maintenance_mode": value,
-        "notice_maintenance_message": message
+        "notice_maintenance_message": message,
+        "notice_maintenance_title": title,
+        "notice_maintenance_updated_at": updated_at,
+        "notice_maintenance_ref": ref
     }), 200
 
 # POST to set notice maintenance mode
@@ -2780,17 +3058,72 @@ def set_notice_maintenance_mode():
     data = request.get_json()
     mode = data.get('mode')
     message = data.get('message', '')
+    title = data.get('title', '').strip()
     if mode not in ['on', 'off']:
         return jsonify({"msg": "Invalid mode"}), 400
+
+    previous_message = get_setting('notice_maintenance_message', '')
+    previous_title = get_setting('notice_maintenance_title', '')
+    previous_updated_at = get_setting('notice_maintenance_updated_at', '')
+    previous_ref = get_setting('notice_maintenance_ref', '')
+
+    now_iso = datetime.utcnow().isoformat()
+    current_ref_number = get_setting('notice_maintenance_ref_counter', '0')
+    try:
+        current_ref_number = int(current_ref_number)
+    except (TypeError, ValueError):
+        current_ref_number = 0
+
+    inferred_title = (title or message.split('.')[0].split('\n')[0]).strip()[:80] if message else (title or 'Driftsmelding')
+
+    if message and message != previous_message:
+        history_items = []
+        if previous_message:
+            history_items.append({
+                'title': previous_title or 'Tidligere driftsmelding',
+                'message': previous_message,
+                'updated_at': previous_updated_at,
+                'ref': previous_ref,
+            })
+        history_items.extend(get_driftsmelding_history())
+
+        deduped_history = []
+        seen_messages = set()
+        for item in history_items:
+            item_message = item.get('message', '')
+            if not item_message or item_message in seen_messages:
+                continue
+            seen_messages.add(item_message)
+            deduped_history.append(item)
+            if len(deduped_history) == 3:
+                break
+        set_driftsmelding_history(deduped_history)
+
+        current_ref_number += 1
+        current_ref = f'HMN-MSG-{current_ref_number:03d}'
+        set_setting('notice_maintenance_ref_counter', str(current_ref_number))
+        set_setting('notice_maintenance_updated_at', now_iso)
+        set_setting('notice_maintenance_ref', current_ref)
+    else:
+        current_ref = previous_ref
+        if previous_updated_at:
+            now_iso = previous_updated_at
+        else:
+            set_setting('notice_maintenance_updated_at', now_iso)
+
     set_setting('notice_maintenance_mode', mode)
     set_setting('notice_maintenance_message', message)
+    set_setting('notice_maintenance_title', inferred_title or 'Driftsmelding')
     
     # Emit updated maintenance status to all clients
     maintenance_mode = get_setting('maintenance_mode', 'off')
     socketio.emit('maintenance_status', {
         'maintenance_mode': maintenance_mode,
         'notice_maintenance_mode': mode,
-        'notice_maintenance_message': message
+        'notice_maintenance_message': message,
+        'notice_maintenance_title': inferred_title or 'Driftsmelding',
+        'notice_maintenance_updated_at': now_iso,
+        'notice_maintenance_ref': current_ref
     })
     
     return jsonify({"msg": f"Notice maintenance mode set to {mode}"}), 200
@@ -2800,11 +3133,22 @@ def maintenance_status():
     mode = get_setting('maintenance_mode', 'off')
     notice_mode = get_setting('notice_maintenance_mode', 'off')
     notice_message = get_setting('notice_maintenance_message', '')
+    notice_title = get_setting('notice_maintenance_title', '')
+    notice_updated_at = get_setting('notice_maintenance_updated_at', '')
+    notice_ref = get_setting('notice_maintenance_ref', '')
     return jsonify({
         'maintenance_mode': mode,
         'notice_maintenance_mode': notice_mode,
-        'notice_maintenance_message': notice_message
+        'notice_maintenance_message': notice_message,
+        'notice_maintenance_title': notice_title,
+        'notice_maintenance_updated_at': notice_updated_at,
+        'notice_maintenance_ref': notice_ref
     })
+
+
+@app.route('/api/driftsmeldinger', methods=['GET'])
+def get_driftsmeldinger():
+    return jsonify(build_driftsmelding_feed()), 200
 
 @app.route('/api/set-maintenance', methods=['POST'])
 @jwt_required()
@@ -3126,10 +3470,16 @@ def handle_connect():
     mode = get_setting('maintenance_mode', 'off')
     notice_mode = get_setting('notice_maintenance_mode', 'off')
     notice_message = get_setting('notice_maintenance_message', '')
+    notice_title = get_setting('notice_maintenance_title', '')
+    notice_updated_at = get_setting('notice_maintenance_updated_at', '')
+    notice_ref = get_setting('notice_maintenance_ref', '')
     socketio.emit('maintenance_status', {
         'maintenance_mode': mode,
         'notice_maintenance_mode': notice_mode,
-        'notice_maintenance_message': notice_message
+        'notice_maintenance_message': notice_message,
+        'notice_maintenance_title': notice_title,
+        'notice_maintenance_updated_at': notice_updated_at,
+        'notice_maintenance_ref': notice_ref
     })
 
 @socketio.on('disconnect')
@@ -3142,10 +3492,16 @@ def handle_maintenance_status_request():
     mode = get_setting('maintenance_mode', 'off')
     notice_mode = get_setting('notice_maintenance_mode', 'off')
     notice_message = get_setting('notice_maintenance_message', '')
+    notice_title = get_setting('notice_maintenance_title', '')
+    notice_updated_at = get_setting('notice_maintenance_updated_at', '')
+    notice_ref = get_setting('notice_maintenance_ref', '')
     socketio.emit('maintenance_status', {
         'maintenance_mode': mode,
         'notice_maintenance_mode': notice_mode,
-        'notice_maintenance_message': notice_message
+        'notice_maintenance_message': notice_message,
+        'notice_maintenance_title': notice_title,
+        'notice_maintenance_updated_at': notice_updated_at,
+        'notice_maintenance_ref': notice_ref
     })
 
 # ===================== Achievements API Endpoints =====================
