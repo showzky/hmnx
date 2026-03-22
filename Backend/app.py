@@ -17,7 +17,7 @@ import socketio as py_socketio
 from flask_socketio import SocketIO, Namespace
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import (
-    JWTManager, create_access_token, create_refresh_token, jwt_required, get_jwt_identity
+    JWTManager, create_access_token, create_refresh_token, jwt_required, get_jwt_identity, decode_token
 )
 from flask_cors import CORS, cross_origin
 from werkzeug.utils import secure_filename
@@ -478,6 +478,29 @@ def set_setting(key, value):
 def get_authenticated_user():
     current_user_id = get_jwt_identity()
     return User.query.get(int(current_user_id)) if current_user_id else None
+
+
+def get_user_from_access_token(raw_token):
+    if not raw_token:
+        return None
+
+    token = str(raw_token).strip()
+    if token.lower().startswith('bearer '):
+        token = token.split(' ', 1)[1].strip()
+
+    try:
+        payload = decode_token(token)
+    except Exception:
+        return None
+
+    identity = payload.get('sub')
+    if not identity:
+        return None
+
+    try:
+        return User.query.get(int(identity))
+    except (TypeError, ValueError):
+        return None
 
 
 def get_backend_base_url():
@@ -1754,11 +1777,15 @@ def delete_connection(provider):
 
 
 @app.route('/api/connections/steam/start', methods=['GET'])
-@jwt_required()
 def start_steam_connection():
     user = get_authenticated_user()
     if not user:
-        return jsonify({"msg": "User not found"}), 404
+        auth_header = request.headers.get('Authorization')
+        query_token = request.args.get('access_token')
+        user = get_user_from_access_token(auth_header or query_token)
+
+    if not user:
+        return jsonify({"msg": "User not found"}), 401
 
     backend_base = get_backend_base_url()
     nonce = secrets.token_urlsafe(24)

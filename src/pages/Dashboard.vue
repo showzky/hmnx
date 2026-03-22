@@ -321,7 +321,6 @@ import { useAuthStore } from '@/stores/authStore'
 import {
   disconnectConnection,
   fetchConnections,
-  fetchSteamConnectUrl,
 } from '@/services/connectionService'
 import RankCard from '@/components/RankCard.vue'
 import AchievementPanel from '@/components/AchievementPanel.vue'
@@ -837,11 +836,17 @@ async function handleConnectionAction(connection) {
       return
     }
 
-    const { data } = await fetchSteamConnectUrl()
-    if (data?.redirect_url) {
-      window.location.href = data.redirect_url
+    const accessToken = localStorage.getItem('access_token')
+    const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+
+    if (!accessToken || !apiBase) {
+      connectionStatusType.value = 'status-error'
+      connectionStatus.value = 'Mangler innloggingsdata for å starte Steam-koblingen.'
       return
     }
+
+    window.location.href = `${apiBase}/connections/steam/start?access_token=${encodeURIComponent(accessToken)}`
+    return
 
     connectionStatusType.value = 'status-error'
     connectionStatus.value = `Kunne ikke starte ${connection.name}-koblingen.`
