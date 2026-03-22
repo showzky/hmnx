@@ -8,6 +8,7 @@ Create Date: 2025-06-24 22:32:45.672519
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
+from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision = '96774187cc8b'
@@ -17,9 +18,14 @@ depends_on = None
 
 
 def upgrade():
-    # Drop foreign key constraint first
+    inspector = inspect(op.get_bind())
+    foreign_keys = inspector.get_foreign_keys('user_achievements')
+
     with op.batch_alter_table('user_achievements', schema=None) as batch_op:
-        batch_op.drop_constraint('user_achievements_ibfk_3', type_='foreignkey')
+        for foreign_key in foreign_keys:
+            if foreign_key.get('referred_table') == 'achievements' and foreign_key.get('constrained_columns') == ['achievement_id']:
+                if foreign_key.get('name'):
+                    batch_op.drop_constraint(foreign_key['name'], type_='foreignkey')
     
     # Change achievements.id to VARCHAR(64)
     with op.batch_alter_table('achievements', schema=None) as batch_op:
@@ -36,7 +42,6 @@ def upgrade():
                type_=sa.String(length=64),
                existing_nullable=False)
     
-    # Re-add foreign key constraint
     with op.batch_alter_table('user_achievements', schema=None) as batch_op:
         batch_op.create_foreign_key('user_achievements_ibfk_3', 'achievements', ['achievement_id'], ['id'])
 
