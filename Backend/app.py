@@ -236,8 +236,16 @@ app.register_blueprint(soundcloud_bp)
 import os
 import logging
 
-if os.getenv("FLASK_ENV") == "production":
-    log_file_path = '/var/www/Backend/app_debug.log'
+configured_app_log_path = os.getenv('APP_DEBUG_LOG_PATH') or os.getenv('APP_LOG_PATH')
+if configured_app_log_path:
+    log_file_path = configured_app_log_path
+elif os.getenv("FLASK_ENV") == "production":
+    preferred_production_log = '/var/www/Backend/app_debug.log'
+    production_dir = os.path.dirname(preferred_production_log)
+    if os.path.isdir(production_dir):
+        log_file_path = preferred_production_log
+    else:
+        log_file_path = os.path.join(os.getcwd(), 'app_debug.log')
 else:
     # For local development on Windows, use a relative path in the current directory.
     log_file_path = os.path.join(os.getcwd(), 'app_debug.log')

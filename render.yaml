@@ -4,13 +4,28 @@ services:
     runtime: python
     rootDir: Backend
     buildCommand: pip install -r requirements.txt
+    preDeployCommand: python -m flask --app manage.py db upgrade heads
     startCommand: gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT app:app
     envVars:
       - key: FLASK_ENV
         value: production
+      - key: FRONTEND_URL
+        sync: false
+      - key: BACKEND_URL
+        sync: false
       - key: DATABASE_URI
         sync: false
       - key: JWT_SECRET_KEY
+        sync: false
+      - key: FLASK_SECRET_KEY
+        sync: false
+      - key: APP_DEBUG_LOG_PATH
+        value: /opt/render/project/src/Backend/app_debug.log
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: STEAM_WEB_API_KEY
         sync: false
       - key: MAILERSEND_SERVER
         sync: false
