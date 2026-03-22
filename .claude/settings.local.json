@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from app import db, Bedriftsmelding; print\\(''''Model OK''''\\)\")",
+      "Bash(flask db:*)"
+    ]
+  }
+}

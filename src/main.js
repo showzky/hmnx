@@ -1,7 +1,8 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
-import './assets/style.css/style.css';  // Import global styles
+import './assets/hmn-theme.css';          // HMN design system variables & utilities
+import './assets/style.css/style.css';    // Legacy global styles
 import './assets/badges.css'; // Import global badge styles
 import 'swiper/swiper-bundle.css';
 import '@fortawesome/fontawesome-free/css/all.css';

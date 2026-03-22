@@ -1,7 +1,13 @@
 <template>
-  <div class="achievement-tab">
+  <section class="achievement-tab-wrap">
+    <div class="sec-head mb24">
+      <div>
+        <div class="sec-title">Achieve<em>ments</em></div>
+        <div class="sec-subtitle">Opprett achievements, sett betingelser og gi dem til brukere.</div>
+      </div>
+    </div>
     <AchievementAdmin />
-  </div>
+  </section>
 </template>
 
 <script>
@@ -13,9 +19,4 @@ export default {
 };
 </script>
 
-<style scoped>
-.achievement-tab {
-  width: 100%;
-  height: 100%;
-}
-</style> 
+<style scoped></style> 

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import axios from '../axios'; // adjust if needed
+import { useAuthStore } from '@/stores/authStore';
 
 // Import your pages
 import Home from '@/pages/Home.vue';
@@ -8,6 +9,7 @@ import Tjenester from '@/pages/Tjenester.vue';
 import Bangerfabrikken from '@/pages/Bangerfabrikken.vue';
 import Dashboard from '@/pages/Dashboard.vue';
 import Login from '@/pages/Login.vue';
+import Register from '@/pages/Register.vue';
 import Comments from '@/pages/Comments.vue';
 import Forum from '@/pages/Forum.vue';
 import Exclusive from '@/pages/Exclusive.vue';
@@ -16,7 +18,8 @@ import Management from '@/pages/Management.vue';
 import EventDetailPage from '@/pages/EventDetailPage.vue';
 import Settings from '@/components/Settings.vue';
 import FriendsList from '@/views/FriendsList.vue'
-//import UserProfile from '../pages/UserProfile.vue';
+import UserProfile from '../pages/UserProfile.vue';
+import Ranks from '@/pages/Ranks.vue';
 import PendingRequests from '../components/PendingRequests.vue';
 import Shop from '@/pages/Shop.vue';
 import Contact from '@/pages/Contact.vue';   
@@ -27,6 +30,8 @@ import ClickerGame from '../views/ClickerGame.vue';
 import ClickerLeaderBoard from '../views/ClickerLeaderBoard.vue';
 import TermsOfService from '../components/LegalStuff/TermsOfService.vue';
 import DinoRunner from '../views/DinoRunner.vue';
+import BedriftsmeldingDetail from '@/pages/BedriftsmeldingDetail.vue';
+import Bedriftsmeldinger from '@/pages/Bedriftsmeldinger.vue';
 
 
 const routes = [
@@ -36,6 +41,7 @@ const routes = [
   { path: '/bangerfabrikken', component: Bangerfabrikken },
   { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/login', component: Login },
+  { path: '/register', component: Register },
   { path: '/comments', name: 'Comments', component: Comments, meta: { requiresAuth: true } },
   { path: '/forum', name: 'Forum', component: Forum, meta: { requiresAuth: true } },
   { path: '/exclusive', name: 'Exclusive', component: Exclusive, meta: { requiresAuth: true } },
@@ -49,7 +55,13 @@ const routes = [
   {
     path: '/users/:userId',
     name: 'UserProfile',
-    component: Dashboard,
+    component: UserProfile,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/ranks',
+    name: 'Ranks',
+    component: Ranks,
     meta: { requiresAuth: true }
   },
   //{ path: '/clicker-game', redirect: '/coming-soon' },
@@ -66,7 +78,9 @@ const routes = [
   {path: '/clicker-game', name: 'ClickerGame', component: ClickerGame, meta: { requiresAuth: true},},
  { path: '/clicker-leaderboard', name: 'ClickerLeaderBoard', component: ClickerLeaderBoard, meta: {requiresAuth: true} },
  { path: '/tos', name: 'TermsOfService', component: TermsOfService, meta: {requiresAuth: false}},
- { path: '/HmnRunner', name: 'DinoRunner', component: DinoRunner, meta: {requiresAuth: true}}
+ { path: '/HmnRunner', name: 'DinoRunner', component: DinoRunner, meta: {requiresAuth: true}},
+ { path: '/bedriftsmeldinger', name: 'Bedriftsmeldinger', component: Bedriftsmeldinger },
+ { path: '/bedriftsmeldinger/:id', name: 'BedriftsmeldingDetail', component: BedriftsmeldingDetail }
 
 
 ];
@@ -77,13 +91,23 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to, from) => {
+  const auth = useAuthStore();
+
   // Handle Discord token via query param.
-  if (to.query.token) {
-    localStorage.setItem('access_token', to.query.token);
+  if (to.query.token && to.path !== '/login') {
+    const token = Array.isArray(to.query.token) ? to.query.token[0] : to.query.token;
+    const user = await auth.hydrateFromToken(token);
+    if (!user) {
+      return { path: '/login', query: { error: 'discord_auth_failed' } };
+    }
     return { path: to.path, query: {} };
   }
 
   const token = localStorage.getItem('access_token');
+  if (token && (!auth.user || !auth.isAuthenticated)) {
+    await auth.hydrateFromToken(token);
+  }
+
   if (to.meta.requiresAuth && !token) {
     return { path: '/login' };
   }

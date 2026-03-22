@@ -1,84 +1,459 @@
+<!-- Design system: /HMN_DESIGN_SYSTEM_v2.md -->
 <template>
-  <div>
-    <HomeLoggedIn v-if="auth.isAuthenticated" :user="auth.user" />
+  <HomeLoggedIn v-if="auth.isAuthenticated" :user="auth.user" />
 
-    <div v-else>
-      <!-- Hero Section -->
-      <div class="hero">
-        <h1>HMN Mental Pasienter</h1>
-        <p class="slogan">Profesjonelle uansvarlige siden 2024</p>
-      </div>
+  <div v-else class="homepage">
+    <HomeHero :loading="loading" :stats="stats" :krenkethetLabel="krenkethetLabel" />
+    <HomeTicker :tickerItems="tickerItems" />
 
-      <!-- Timeline Section -->
-      <div class="hero">
-        <div class="timeline-meme">
-          <div class="timeline-item">
-            <div class="timeline-emoji">🎉</div>
-            <div class="timeline-text">
-              <h3>Født i kaos</h3>
-              <p>"Vi møttes faktisk først i 2024 alle sammen face to face" - Thomas, probably</p>
-            </div>
+    <div class="main">
+      <div class="hmn-container">
+
+        <!-- BEDRIFTSMELDINGER -->
+        <div class="sh reveal mb32">
+          <span class="sh-title">Bedrifts<em>meldinger</em></span>
+          <div class="sh-line"></div>
+          <span class="sh-tag">sanntid-ish</span>
+        </div>
+        <HomeMeldinger
+          :loading="loading"
+          :featuredMelding="featuredMelding"
+          :displayMeldinger="displayMeldinger"
+          :formatDate="formatDate"
+        />
+
+        <HomeWidgets :loading="loading" :displayHendelser="displayHendelser" />
+
+        <!-- FRA GJENGEN -->
+        <div class="sh reveal mb32">
+          <span class="sh-title">Fra <em>gjengen</em></span>
+          <div class="sh-line"></div>
+        </div>
+        <div class="g2 reveal mb48">
+          <div class="born">
+            <div class="born-emoji">🎉</div>
+            <div class="born-title">Født i kaos</div>
+            <div class="born-quote">"Vi møttes faktisk først i 2024 alle sammen face to face"</div>
+            <div class="born-attr">— Thomas, probably · REF: HMN-001</div>
           </div>
-          <div class="timeline-item discord-highlight">
-            <div class="timeline-emoji">🎮</div>
-            <div class="timeline-text">
-              <h3>TimeCraft Discord</h3>
-              <p>
-                Hovedkvarter for:
-                <br />
-                <span class="discord-activities">
-                  Memes å gode samtaler seriøse samtaler  🗿 av og til xD 
-                  <br />
-                  velkommen skarru være🍕
-                </span>
-              </p>
-              <button class="discord-btn" @click="openDiscord">
-                Bli med i koret av kaos
-              </button>
-            </div>
+          <div class="disc">
+            <div class="born-emoji">🎮</div>
+            <div class="disc-title">TimeCraft Discord</div>
+            <div class="disc-sub">Memes, kaos, halvgode idéer og av og til seriøse samtaler. Velkommen skarru være 📣</div>
+            <button class="disc-btn" @click="openDiscord">Bli med i koret av kaos</button>
           </div>
         </div>
-      </div>
 
-      <!-- Meeting Section -->
-      <section class="meeting-section">
-        <h2>🏔️ Historisk Øyeblikk</h2>
-        <div class="meeting-card">
-          <p class="meeting-date">August 2024</p>
-          <h3>Den store Sunndalsøra-konspirasjonen</h3>
-          <p>Hva skjedde egentlig der oppe? Verden vil aldri vite...</p>
-          <div class="classified">
-            🔒 KLASSIFISERT
-            <span class="tooltip">(Spør Kim-Andre om passord)</span>
+        <!-- HISTORISK ØYEBLIKK -->
+        <div class="sh reveal mb32">
+          <span class="sh-title">Historisk <em>øyeblikk</em></span>
+          <div class="sh-line"></div>
+          <span class="sh-tag">arkiv</span>
+        </div>
+        <div class="hist reveal mb48">
+          <div class="hist-top">
+            <div class="hist-dot"></div>
+            <span class="hist-top-label">Klassifisert hendelse · REF: HMN-001</span>
+          </div>
+          <div class="hist-body">
+            <div>
+              <div class="hist-ref">August 2024</div>
+              <div class="hist-title">Den store Sunndalsøra-konspirasjonen</div>
+              <div class="hist-sub">Hva skjedde egentlig der oppe? Verden vil aldri vite. Thomas vet. Thomas sier ingenting.</div>
+            </div>
+            <div class="hist-badge">Klassifisert</div>
           </div>
         </div>
-      </section>
+
+        <!-- LOGIN CTA -->
+        <div class="cta reveal">
+          <div class="cta-text">
+            <h3>Logg inn for å se alt</h3>
+            <p>Profil, Steam-stats, Xbox, Battle.net, achievements, hendelse-RSVP og vennenes aktivitet. Alt du går glipp av ved å stå utenfor.</p>
+          </div>
+          <div class="cta-actions">
+            <button class="btn btn-red"   @click="$router.push('/login')">Logg inn</button>
+            <button class="btn btn-ghost" @click="$router.push('/register')">Registrer deg</button>
+          </div>
+        </div>
+
+      </div>
     </div>
   </div>
 </template>
 
-<script>
-import HomeLoggedIn from '@/components/HomeLoggedIn.vue';
+<script setup>
+import { ref, computed, onMounted, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
-export default {
-  name: 'Home',
-  components: {
-    HomeLoggedIn
-  },
-  setup() {
-    const auth = useAuthStore();
-    return { auth };
-  },
-  methods: {
-    openDiscord() {
-      window.open('https://discord.gg/z8XkcvtaRs', '_blank');
-    }
-  }
+import HomeLoggedIn from '@/components/HomeLoggedIn.vue';
+import HomeHero from '@/components/HomeHero.vue';
+import HomeTicker from '@/components/HomeTicker.vue';
+import HomeMeldinger from '@/components/HomeMeldinger.vue';
+import HomeWidgets from '@/components/HomeWidgets.vue';
+import api from '@/axios';
+
+const auth   = useAuthStore();
+const router = useRouter();
+
+// ── State ──────────────────────────────────────────────────────────────────
+const stats = ref({ pasienter_online: null, kommende_hendelser_count: null, krenkethet_index: 55 });
+const featuredMelding  = ref(null);
+const rawMeldinger     = ref([]);
+const rawHendelser     = ref([]);
+const activityFeed     = ref([]);
+
+const loading = ref({ stats: true, featuredMelding: true, meldinger: true, hendelser: true, activity: true });
+
+// ── Computed: krenkethet label ─────────────────────────────────────────────
+const krenkethetLabel = computed(() => {
+  const v = stats.value.krenkethet_index;
+  if (v <= 30) return 'Lav';
+  if (v <= 60) return 'Moderat';
+  if (v <= 80) return 'Forhøyet';
+  return 'Kritisk';
+});
+
+// ── Computed: update list with hardcoded fallbacks ─────────────────────────
+const FALLBACK_MELDINGER = [
+  { title: 'Forum offisielt nedlagt',     meta: 'for lenge siden · permanent',  desc: 'Savnet av ingen. Minnes med en viss lettelse og en kopp kaffe.' },
+  { title: 'Discord sentralbord i drift', meta: 'løpende · HMN-MSG-018',        desc: 'TimeCraft Discord kjører som hub for koordinert tull og spontane planer ingen egentlig hadde.' },
+  { title: 'Thomas fikk skylda igjen',    meta: 'i dag · automatisk · § 2.1',   desc: 'Systemet fungerer som det skal. Ingen videre kommentarer.' },
+];
+const displayMeldinger = computed(() =>
+  rawMeldinger.value.length
+    ? rawMeldinger.value.map(m => ({ title: m.title, meta: m.meta || m.date || '', desc: m.body || m.desc || '' }))
+    : FALLBACK_MELDINGER
+);
+
+// ── Computed: hendelser with hardcoded fallbacks ───────────────────────────
+const BADGE_MAP = {
+  required: { cls: 'evb-gold', label: 'Påkrevd oppmøte' },
+  thomas:   { cls: 'evb-red',  label: 'Skyld på Thomas' },
+  login:    { cls: 'evb-cyan', label: 'Logg inn' },
 };
+const FALLBACK_HENDELSER = [
+  { title: "Olivers Party 🎉",  dateLabel: '29.03.2025 · 22:07',              badge: BADGE_MAP.required },
+  { title: 'Neste kriseøvelse', dateLabel: 'TBD · koordineres av ingen',      badge: BADGE_MAP.thomas },
+  { title: 'Din RSVP-status',   dateLabel: 'logg inn for å bekrefte oppmøte', badge: BADGE_MAP.login },
+];
+const displayHendelser = computed(() =>
+  rawHendelser.value.length
+    ? rawHendelser.value.map(h => ({
+        id:        h.id,
+        title:     h.title,
+        dateLabel: formatDate(h.date),
+        badge:     BADGE_MAP[h.badge_type] || { cls: 'evb-cyan', label: h.badge_type || 'Info' },
+      }))
+    : FALLBACK_HENDELSER
+);
+
+// ── Computed: ticker items ────────────────────────────────────────────────
+const HARDCODED_TICKER = [
+  { text: 'Thomas',                                          highlight: true  },
+  { text: ' logget inn og skyldte på noen',                  highlight: false },
+  { text: 'Krenkethet ',                                     highlight: false },
+  { text: '+12%',                                            highlight: true  },
+  { text: ' etter torsdagsmøtet',                            highlight: false },
+  { text: 'Ny banger lastet opp i ',                         highlight: false },
+  { text: 'Bangerfabrikken',                                 highlight: true  },
+  { text: 'Daglig dose kaffe: ',                             highlight: false },
+  { text: 'administrert',                                    highlight: true  },
+  { text: 'Forum: ',                                         highlight: false },
+  { text: 'fremdeles nedlagt · § 4.2',                       highlight: true  },
+  { text: 'Cookie clicker-avhengighet: ',                    highlight: false },
+  { text: 'ubehandlet',                                      highlight: true  },
+  { text: 'Eksistensiell krise detektert — ',                highlight: false },
+  { text: 'behandles med kebab',                             highlight: true  },
+];
+const tickerItems = computed(() => {
+  const apiItems = activityFeed.value
+    .map(a => ({ text: a.message || a.text || a.activity || '', highlight: false }))
+    .filter(i => i.text);
+  return [...apiItems, ...HARDCODED_TICKER];
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function openDiscord() {
+  window.open('https://discord.gg/z8XkcvtaRs', '_blank');
+}
+
+// ── API fetchers ──────────────────────────────────────────────────────────
+async function fetchStats() {
+  try {
+    const { data } = await api.get('/stats');
+    stats.value = { krenkethet_index: 55, ...data };
+  } catch { /* keep defaults */ } finally {
+    loading.value.stats = false;
+  }
+}
+
+function stripHtml(html) {
+  if (!html) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+}
+
+async function fetchMeldinger() {
+  try {
+    const { data } = await api.get('/bedriftsmeldinger');
+    const items = Array.isArray(data) ? data : [];
+    if (items.length) {
+      const pinned = items.find(m => m.pinned) || items[0];
+      featuredMelding.value = {
+        id:    pinned.id,
+        ref:   pinned.ref,
+        date:  pinned.created_at,
+        title: pinned.title,
+        body:  stripHtml(pinned.content),
+      };
+      rawMeldinger.value = items
+        .filter(m => m.id !== pinned.id)
+        .slice(0, 3)
+        .map(m => ({
+          id:    m.id,
+          title: m.title,
+          meta:  [formatDate(m.created_at), m.ref].filter(Boolean).join(' · '),
+          desc:  stripHtml(m.content),
+        }));
+    } else {
+      featuredMelding.value = null;
+      rawMeldinger.value = [];
+    }
+  } catch { /* use fallbacks */ } finally {
+    loading.value.featuredMelding = false;
+    loading.value.meldinger       = false;
+  }
+}
+
+async function fetchHendelser() {
+  try {
+    const { data } = await api.get('/hendelser', { params: { upcoming: true, limit: 3 } });
+    rawHendelser.value = data || [];
+  } catch { /* use fallbacks */ } finally {
+    loading.value.hendelser = false;
+  }
+}
+
+async function fetchActivity() {
+  try {
+    const { data } = await api.get('/activity', { params: { limit: 30 } });
+    activityFeed.value = data || [];
+  } catch { /* ticker works with hardcoded items */ } finally {
+    loading.value.activity = false;
+  }
+}
+
+// ── Scroll reveal ─────────────────────────────────────────────────────────
+function initReveal() {
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+}
+
+// ── Mount ─────────────────────────────────────────────────────────────────
+onMounted(async () => {
+  await nextTick();
+  await Promise.allSettled([fetchStats(), fetchMeldinger(), fetchHendelser(), fetchActivity()]);
+  initReveal();
+});
 </script>
 
 <style scoped>
-/* Optional - Keep global styles in your main `style.css` file */
-/* Add any section-specific tweaks here if necessary */
+/* ── Base ── */
+.homepage {
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-family: var(--font-body);
+  overflow-x: hidden;
+}
+
+/* ── MAIN ── */
+.main {
+  padding: 52px 0 72px;
+  background: var(--bg);
+}
+
+/* ── Buttons (used by events + CTA) ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 20px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  border: none;
+  transition: all 0.18s;
+  letter-spacing: 0.02em;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn-red {
+  background: linear-gradient(145deg, var(--red), #8a0e1e);
+  color: white;
+  box-shadow: 0 4px 16px rgba(200,16,46,0.28);
+}
+.btn-red:hover { box-shadow: 0 6px 24px rgba(200,16,46,0.42); }
+.btn-ghost {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border2);
+  color: var(--text);
+}
+.btn-ghost:hover { background: rgba(255,255,255,0.08); }
+
+/* ── FRA GJENGEN ── */
+.born {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-lg);
+  padding: 22px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.born:hover { border-color: rgba(0,184,208,0.16); }
+.born::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0,184,208,0.03), transparent 60%);
+  pointer-events: none;
+}
+.born-emoji  { font-size: 26px; margin-bottom: 2px; }
+.born-title  { font-family: var(--font-display); font-size: 20px; font-weight: 900; color: var(--bright); letter-spacing: 0.06em; text-transform: uppercase; margin: 10px 0 8px; }
+.born-quote  { font-size: 13px; color: rgba(255,255,255,0.28); line-height: 1.75; font-style: italic; font-family: var(--font-body); }
+.born-attr   { font-size: 10px; color: var(--text-muted); margin-top: 8px; font-family: var(--font-ui); }
+
+.disc {
+  background: linear-gradient(140deg, rgba(64,78,237,0.2), rgba(64,78,237,0.08));
+  border: 1px solid rgba(88,101,242,0.2);
+  border-radius: var(--r-lg);
+  padding: 22px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.disc:hover { border-color: rgba(88,101,242,0.35); }
+.disc::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at top, rgba(88,101,242,0.07), transparent 60%);
+  pointer-events: none;
+}
+.disc-title { font-family: var(--font-display); font-size: 20px; font-weight: 900; color: white; letter-spacing: 0.06em; text-transform: uppercase; margin: 8px 0 7px; }
+.disc-sub   { font-size: 13px; color: rgba(180,190,255,0.5); line-height: 1.75; margin-bottom: 16px; font-family: var(--font-body); }
+.disc-btn {
+  background: rgba(88,101,242,0.22);
+  color: white;
+  border: 1px solid rgba(88,101,242,0.32);
+  padding: 9px 22px;
+  font-size: 12px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  font-weight: 700;
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: all 0.18s;
+  position: relative;
+  z-index: 1;
+}
+.disc-btn:hover { background: rgba(88,101,242,0.38); }
+
+/* ── HISTORISK ── */
+.hist {
+  background: rgba(255,255,255,0.018);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.hist-top {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(200,16,46,0.05);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hist-dot {
+  width: 7px; height: 7px;
+  background: var(--red2);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--red2);
+  flex-shrink: 0;
+}
+.hist-top-label {
+  font-size: 11px;
+  color: var(--red2);
+  letter-spacing: 0.07em;
+  font-weight: 600;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+}
+.hist-body {
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.hist-ref   { font-size: 11px; color: var(--text-muted); font-family: var(--font-ui); margin-bottom: 4px; }
+.hist-title { font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--bright); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+.hist-sub   { font-size: 13px; color: rgba(255,255,255,0.25); line-height: 1.6; font-family: var(--font-body); }
+.hist-badge {
+  font-size: 9px; padding: 4px 10px;
+  border-radius: var(--r-xs);
+  background: rgba(200,16,46,0.12);
+  color: var(--red2);
+  border: 1px solid rgba(200,16,46,0.22);
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── CTA ── */
+.cta {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-lg);
+  padding: 36px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 16px;
+}
+.cta h3 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--bright);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+.cta p {
+  font-size: 13px;
+  color: rgba(255,255,255,0.3);
+  line-height: 1.7;
+  max-width: 500px;
+  font-family: var(--font-body);
+}
+.cta-actions { display: flex; gap: 10px; flex-shrink: 0; }
 </style>
-  

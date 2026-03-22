@@ -1,0 +1,252 @@
+/* ── HMN Theme — Global Variables & Utilities ──
+   Source of truth: /HMN_DESIGN_SYSTEM_v2.md
+   Imported in main.js — loaded BEFORE component styles
+*/
+
+:root {
+  /* ── Page Backgrounds ── */
+  --bg:              #080c12;
+  --bg2:             #0b1018;
+  --surface:         #0f1720;
+  --surface2:        #131e28;
+  --surface3:        #1a2535;
+
+  /* ── Borders ── */
+  --border:          rgba(255,255,255,0.07);
+  --border2:         rgba(255,255,255,0.11);
+  --border3:         rgba(255,255,255,0.16);
+  --border-red:      rgba(200,16,46,0.2);
+  --border-cyan:     rgba(0,184,208,0.16);
+  --border-gold:     rgba(216,152,32,0.22);
+
+  /* ── Text ── */
+  --text:            #b8ccd8;
+  --text-muted:      #3d5668;
+  --text-dim:        #283848;
+  --text-bright:     #eaf2ff;
+  --text-on-red:     #ffffff;
+  --text-on-surface: #c8d8e8;
+
+  /* ── Brand Accents ── */
+  --red:             #c8102e;
+  --red2:            #e8304a;
+  --red-bg:          rgba(200,16,46,0.08);
+  --red-border:      rgba(200,16,46,0.2);
+  --red-glow:        rgba(200,16,46,0.3);
+
+  --cyan:            #00b8d0;
+  --cyan2:           #30d8f0;
+  --cyan-bg:         rgba(0,184,208,0.07);
+  --cyan-border:     rgba(0,184,208,0.16);
+  --cyan-glow:       rgba(0,184,208,0.2);
+
+  --gold:            #d89820;
+  --gold2:           #f0b030;
+  --gold-bg:         rgba(216,152,32,0.1);
+  --gold-border:     rgba(216,152,32,0.2);
+
+  --green:           #28b860;
+  --green2:          #40d878;
+  --green-bg:        rgba(40,184,96,0.1);
+  --green-border:    rgba(40,184,96,0.2);
+
+  --purple:          #7050d8;
+  --purple-bg:       rgba(112,80,216,0.06);
+
+  /* ── Gaming Platform Colors ── */
+  --steam:           #1b9fd4;
+  --steam-bg:        rgba(27,159,212,0.1);
+  --steam-border:    rgba(27,159,212,0.22);
+  --steam-text:      #4ab8e8;
+
+  --xbox:            #107c10;
+  --xbox-bg:         rgba(16,124,16,0.1);
+  --xbox-border:     rgba(16,124,16,0.22);
+  --xbox-text:       #4ec84e;
+
+  --bnet:            #148eff;
+  --bnet-bg:         rgba(20,142,255,0.1);
+  --bnet-border:     rgba(20,142,255,0.22);
+  --bnet-text:       #60aeff;
+
+  --discord-color:   #5865f2;
+  --discord-bg:      rgba(88,101,242,0.15);
+  --discord-border:  rgba(88,101,242,0.25);
+  --discord-text:    #8891f8;
+
+  /* ── Radius ── */
+  --r-xs:   3px;
+  --r-sm:   4px;
+  --r-md:   6px;
+  --r-lg:   10px;
+  --r-xl:   12px;
+  --r-2xl:  16px;
+
+  /* ── Shadows ── */
+  --shadow-sm:    0 8px 24px rgba(0,0,0,0.4);
+  --shadow-md:    0 16px 48px rgba(0,0,0,0.5);
+  --shadow-lg:    0 32px 80px rgba(0,0,0,0.55);
+  --shadow-red:   0 4px 16px rgba(200,16,46,0.28);
+  --shadow-red2:  0 6px 24px rgba(200,16,46,0.42);
+  --shadow-cyan:  0 4px 16px rgba(0,184,208,0.2);
+
+  /* ── Typography ── */
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-body:    'Barlow', sans-serif;
+  --font-ui:      'DM Sans', sans-serif;
+
+  /* ── Z-index ── */
+  --z-base:     1;
+  --z-raised:   10;
+  --z-sticky:   40;
+  --z-overlay:  60;
+  --z-modal:    80;
+  --z-toast:    100;
+
+  /* ── Transitions ── */
+  --transition-fast:   0.15s ease;
+  --transition-base:   0.2s ease;
+  --transition-slow:   0.35s ease;
+
+  /* ── Backward Compatibility (old --hmn-* aliases) ── */
+  --hmn-bg:        var(--bg);
+  --hmn-bg2:       var(--bg2);
+  --hmn-surface:   var(--surface);
+  --hmn-surface2:  var(--surface2);
+  --hmn-border:    var(--border);
+  --hmn-border2:   var(--border2);
+  --hmn-text:      var(--text);
+  --hmn-muted:     var(--text-muted);
+  --hmn-bright:    var(--text-bright);
+  --hmn-red:       var(--red);
+  --hmn-red2:      var(--red2);
+  --hmn-cyan:      var(--cyan);
+  --hmn-cyan2:     var(--cyan2);
+  --hmn-gold:      var(--gold);
+  --hmn-green:     var(--green);
+  --hmn-purple:    var(--purple);
+  --hmn-steam:     var(--steam);
+  --hmn-xbox:      var(--xbox);
+  --hmn-bnet:      var(--bnet);
+  --hmn-discord:   var(--discord-color);
+  --hmn-danger:    var(--red2);
+  --hmn-warning:   var(--gold);
+  --hmn-success:   var(--green);
+  --hmn-info:      var(--cyan);
+  --hmn-radius-sm: var(--r-sm);
+  --hmn-radius-md: var(--r-md);
+  --hmn-radius-lg: var(--r-lg);
+  --hmn-radius-xl: var(--r-xl);
+}
+
+/* ── Keyframes ── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Shared layout ── */
+.hmn-container {
+  width: min(calc(100% - 2.5rem), 1120px);
+  margin: 0 auto;
+}
+
+/* ── Scroll reveal ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Skeleton loading ── */
+.skel {
+  display: inline-block;
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 4px;
+}
+.skel-sm    { height: 12px; width: 120px; }
+.skel-xs    { height: 10px; width: 60px; }
+.skel-title { height: 28px; width: 200px; display: block; }
+.skel-line  { height: 11px; width: 100%; display: block; }
+.skel-badge { height: 22px; width: 90px; display: block; border-radius: 4px; }
+
+/* ── Spacing utilities ── */
+.mb6  { margin-bottom: 6px; }
+.mb8  { margin-bottom: 8px; }
+.mb16 { margin-bottom: 16px; }
+.mb32 { margin-bottom: 32px; }
+.mb48 { margin-bottom: 52px; }
+
+/* ── Color utilities ── */
+.c-red   { color: var(--red2); }
+.c-cyan  { color: var(--cyan); }
+.c-gold  { color: var(--gold); }
+.c-green { color: var(--green); }
+
+/* ── Section header ── */
+.sh {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.sh-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-bright);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.sh-title em { color: var(--cyan); font-style: normal; }
+.sh-line { flex: 1; height: 1px; background: linear-gradient(90deg, var(--border2), transparent); }
+.sh-tag {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 3px 9px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+}
+
+/* ── Grid ── */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+/* ── Modal transitions (global for <Transition name="modal">) ── */
+.modal-enter-active, .modal-leave-active {
+  transition: opacity 0.2s ease;
+}
+.modal-enter-active .modal, .modal-leave-active .modal {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.modal-enter-from, .modal-leave-to {
+  opacity: 0;
+}
+.modal-enter-from .modal, .modal-leave-to .modal {
+  opacity: 0;
+  transform: translateY(-12px) scale(0.97);
+}

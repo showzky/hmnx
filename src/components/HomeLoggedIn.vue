@@ -1,761 +1,462 @@
+<!-- Design system: /HMN_DESIGN_SYSTEM_v2.md -->
 <template>
-  <div class="home-logged-in">
-    <!-- Welcome Section -->
-    <section class="welcome-section">
-      <div class="welcome-card">
-        <div class="welcome-header">
-          <h2>👋 Welcome back, {{ user.username }}!</h2>
-        </div>
-        <div class="user-stats">
-          <div class="stat-item">
-            <span class="stat-label">Rank</span>
-            <span class="stat-value">{{ user.roles[0]?.name || 'Member' }}</span>
+  <div class="hli">
+
+    <!-- ── WELCOME BAND ── -->
+    <div class="wb">
+      <div class="c">
+        <div class="wb-inner">
+          <div class="wb-left">
+            <div class="av av-lg" :style="avatarStyle">{{ userInitial }}</div>
+            <div>
+              <div class="wb-hi">Velkommen tilbake, <em>{{ user.username }}</em> 👋</div>
+              <div class="wb-sub">{{ topRole }} · Pasient siden januar 2024</div>
+            </div>
           </div>
-          <div class="stat-item">
-            <span class="stat-label">Fitte Points</span>
-            <span class="stat-value">{{ user.fittePoints }}</span>
+          <div class="wb-right">
+            <div class="wstat"><div class="wv cyan">{{ user.achievements_count ?? '—' }}</div><div class="wl">Achievements</div></div>
+            <div class="ws"></div>
+            <div class="wstat"><div class="wv gold">{{ currentPoints.toLocaleString('nb-NO') }}</div><div class="wl">Fitte Points</div></div>
+            <div class="ws"></div>
+            <div class="wstat"><div class="wv red">{{ user.krenket_level ?? 55 }}%</div><div class="wl">Krenket</div></div>
+            <div class="ws"></div>
+            <button class="dr-btn" :class="{ claimed: dailyClaimed }" :disabled="dailyClaimed" @click="claimDaily">
+              <span>🎁</span>
+              <div><div class="dr-label">{{ dailyClaimed ? formatTime(countdown) : 'Daglig belønning' }}</div><span class="dr-sub">🔥 hent poeng</span></div>
+              <span v-if="!dailyClaimed" class="dr-pill">Hent</span>
+            </button>
           </div>
         </div>
       </div>
-    </section>
+    </div>
 
-    <div class="content-grid">
-      <!-- What's New Section -->
-      <section class="whats-new-section content-card">
-        <div class="section-header">
-          <h3>✨ What's News</h3>
-        </div>
-        <div class="news-container">
-          <p v-if="newsItems.length === 0" class="no-news">No news items available right now</p>
-          <div v-else class="news-items">
-            <div v-for="item in topNews" :key="item.id" class="news-item">
-              <div class="news-header">
-                <h4 class="news-title">{{ item.title }}</h4>
-                <span class="news-date">{{ new Date(item.date).toLocaleDateString() }}</span>
+    <!-- ── MAIN ── -->
+    <div class="main">
+      <div class="c">
+        <div class="layout">
+
+          <!-- LEFT -->
+          <div>
+
+            <!-- NOW PLAYING — TODO: replace static data with gaming API -->
+            <div class="mb20">
+              <div class="sh"><span class="sh-t">Gjengen <em>spiller nå</em></span><div class="sh-l"></div><span class="sh-a">Se alle profiler →</span></div>
+              <div class="np-grid">
+                <div v-for="p in nowPlaying" :key="p.username" class="np-card" :class="{ playing: p.online }">
+                  <div class="np-top">
+                    <div class="av av-sm" :style="{ background: p.color }">{{ p.username[0] }}<span class="np-dot" :class="{ on: p.online }"></span></div>
+                    <span class="np-name">{{ p.username }}</span>
+                    <span class="plat" :class="'fp-' + p.platform">{{ p.platform === 'offline' ? 'Offline' : p.platform }}</span>
+                  </div>
+                  <div v-if="p.online" class="np-art" :style="{ background: p.artBg }">{{ p.code }}</div>
+                  <div v-else class="np-offline">Sist sett {{ p.lastSeen }}</div>
+                  <div class="np-game" :class="{ muted: !p.online }">{{ p.game }}</div>
+                  <div class="np-meta">{{ p.meta }}</div>
+                </div>
               </div>
-              <div class="news-content" v-html="getNewsPreview(item.content)"></div>
             </div>
+
+            <!-- ACTIVITY FEED — TODO: replace static data with /activity API -->
+            <div class="mb20">
+              <div class="sh"><span class="sh-t">Gruppe<em>aktivitet</em></span><div class="sh-l"></div><span class="sh-a">Last mer →</span></div>
+              <div class="card">
+                <div v-for="(item, i) in activityFeed" :key="i" class="fi" :class="{ 'fi-new': item.isNew }">
+                  <div v-if="item.avatar" class="av av-sm" :style="{ background: item.color }">{{ item.avatar }}<span v-if="item.online" class="fi-online"></span></div>
+                  <div v-else class="fi-ico" :class="item.icoClass">{{ item.ico }}</div>
+                  <div class="fi-body">
+                    <div class="fi-txt" v-html="item.text"></div>
+                    <div class="fi-meta">
+                      <span>{{ item.time }}</span>
+                      <span class="plat" :class="'fp-' + item.plat">{{ item.platLabel }}</span>
+                      <span v-if="item.game">{{ item.game }}</span>
+                    </div>
+                  </div>
+                  <div v-if="item.thumb" class="fi-thumb" :style="{ background: item.thumb.bg }">{{ item.thumb.code }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- GAMING STATS — TODO: replace with /gaming-stats API -->
+            <div>
+              <div class="sh"><span class="sh-t">Gjengens <em>gaming</em></span><div class="sh-l"></div></div>
+              <div class="card gs-grid">
+                <div class="gs"><div class="gv cyan">5,840t</div><div class="gl">Total spilltid</div></div>
+                <div class="gs"><div class="gv gold">284,200</div><div class="gl">Gamerscore</div></div>
+                <div class="gs"><div class="gv green">1,247</div><div class="gl">Achievements</div></div>
+                <div class="gs"><div class="gv red">Thomas</div><div class="gl">Skyld-leder</div></div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- SIDEBAR -->
+          <div class="sidebar">
+
+            <!-- LATEST MELDING -->
+            <div>
+              <div class="sh mb16"><span class="sh-t">Siste <em>melding</em></span><div class="sh-l"></div></div>
+              <div class="card">
+                <div v-if="latestMelding" class="mp">
+                  <div class="mp-top">
+                    <span class="mp-tag" :class="tagClass(latestMelding.category)">{{ categoryLabel(latestMelding.category) }}</span>
+                    <span class="mp-ref">{{ latestMelding.ref }}</span>
+                  </div>
+                  <div class="mp-title">{{ latestMelding.title }}</div>
+                  <div class="mp-body">{{ stripHtml(latestMelding.content) }}</div>
+                  <div class="mp-foot">
+                    <router-link :to="`/bedriftsmeldinger/${latestMelding.id}`" class="btn btn-red btn-sm">Les melding</router-link>
+                    <router-link to="/bedriftsmeldinger" class="btn btn-ghost btn-sm">Alle meldinger</router-link>
+                  </div>
+                </div>
+                <div v-else class="empty-txt">Ingen meldinger ennå.</div>
+              </div>
+            </div>
+
+            <!-- KRENKET LEADERBOARD — TODO: replace with /users?sort=krenket API -->
+            <div>
+              <div class="sh mb16"><span class="sh-t">🔥 Krenket-<em>toppen</em></span><div class="sh-l"></div></div>
+              <div class="card">
+                <div v-for="(u, i) in leaderboard" :key="u.name" class="lb-row">
+                  <div class="lb-pos" :class="['p1','p2','p3'][i] || ''">{{ i + 1 }}</div>
+                  <div class="av av-xs" :style="{ background: u.color }">{{ u.name[0] }}</div>
+                  <div class="lb-info"><div class="lb-name">{{ u.name }}</div><div class="lb-sub">{{ u.rank }}</div></div>
+                  <div class="lb-bar"><div class="lb-track"><div class="lb-fill" :style="{ width: u.pct + '%' }"></div></div></div>
+                  <div class="lb-val">{{ u.pct }}%</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- EVENTS -->
+            <div>
+              <div class="sh mb16"><span class="sh-t">Kommende <em>hendelser</em></span><div class="sh-l"></div></div>
+              <div class="card">
+                <div v-if="!events.length" class="empty-txt">Ingen kommende hendelser.</div>
+                <router-link v-for="ev in events.slice(0,3)" :key="ev.id" :to="`/events/${ev.id}`" class="ev-row">
+                  <div class="ev-badge"><div class="ev-day">{{ ev.day }}</div><div class="ev-month">{{ ev.month }}</div></div>
+                  <div class="ev-info"><div class="ev-name">{{ ev.name }}</div><div class="ev-time">{{ ev.time }}</div></div>
+                  <div class="ev-rsvp" :class="{ confirmed: ev.rsvp }">{{ ev.rsvp ? '✓ Påmeldt' : 'RSVP' }}</div>
+                </router-link>
+              </div>
+            </div>
+
           </div>
         </div>
-        <div class="section-footer">
-          <router-link to="/news" class="view-all-link">
-            <button class="secondary-button">See All News</button>
-          </router-link>
-        </div>
-      </section>
-
-      <!-- Community Stats -->
-      <section class="community-stats content-card">
-        <div class="section-header">
-          <h3>👥 Community Highlights</h3>
-        </div>
-        <ul class="stats-list">
-          <li>
-            <span class="stat-icon">👥</span>
-            <span>Total Users: {{ stats.totalUsers }}</span>
-          </li>
-          <li>
-            <span class="stat-icon">🔥</span>
-            <span>Active This Week: {{ stats.activeThisWeek }}</span>
-          </li>
-          <li>
-            <span class="stat-icon">🏆</span>
-            <span>Top User: {{ stats.topUser }}</span>
-          </li>
-        </ul>
-      </section>
-
-      <!-- Upcoming Events -->
-      <section class="upcoming-events content-card">
-        <div class="section-header">
-          <h3>📅 Upcoming Events</h3>
-        </div>
-        <ul class="events-list">
-          <li v-for="event in displayedEvents" :key="event.id" class="event-item">
-            <span class="event-icon">🎮</span>
-            <router-link :to="`/events/${event.id}`" class="event-link">
-              <span class="event-name">{{ event.name }}</span>
-              <span class="event-date">{{ event.date }}</span>
-            </router-link>
-          </li>
-        </ul>
-        <div class="section-footer">
-          <button class="secondary-button">See Full Calendar</button>
-        </div>
-      </section>
-
-      <!-- Daily Reward Button -->
-      <section class="daily-reward content-card">
-        <div class="section-header">
-          <h3>🎁 Daily Reward</h3>
-        </div>
-        <div class="reward-container">
-          <p>Click to get your daily Fitte Points!</p>
-          <button @click="claimDailyReward" :disabled="dailyClaimed">
-            Claim Daily Reward
-          </button>
-          <p v-if="dailyClaimed" class="claimed-message">✅ You already claimed today's reward!</p>
-          <p v-if="dailyClaimed && countdown > 0" class="countdown-message">
-            Next reward in {{ formatTime(countdown) }}
-          </p>
-        </div>
-      </section>
-      <section class="discord-widget content-card">
-        <div class="section-header">
-          <h3>
-            <img
-              src="https://assets-global.website-files.com/6257adef93867e50d84d30e2/636e0a6a49cf127bf92de1e2_icon_clyde_blurple_RGB.png"
-              alt="Discord logo" class="discord-logo" width="24" height="24" />
-            Join Our Discord
-          </h3>
-        </div>
-        <div class="discord-content">
-          <p>Connect with the community, get help, and participate in voice chats!</p>
-          <a href="https://discord.gg/z8XkcvtaRs" target="_blank" rel="noopener noreferrer" class="discord-button">
-            Join Server
-          </a>
-        </div>
-      </section>
-
-      <!-- Games & Fun Card -->
-      <section class="games-fun content-card">
-        <div class="section-header">
-          <h3>🎮 Games & Fun</h3>
-        </div>
-        <div class="games-fun-content">
-          <p>
-            <strong>Try out our upcoming games and fun features!</strong><br>
-            <span class="ps-text">
-              PS: <span class="highlight">Pre Alpha 1.0 is live</span> <br>
-              Click the button below to check it out!
-            </span>
-          </p>
-          <router-link to="/clicker-game">
-            <button class="cookie-clicker-btn">Cookie Clicker</button>
-          </router-link>
-        </div>
-      </section>
+      </div>
     </div>
+
   </div>
 </template>
 
 <script>
-import axios from '@/axios'
+import axios from '@/axios';
 import { io } from 'socket.io-client';
+
 export default {
   name: 'HomeLoggedIn',
-  props: {
-    user: Object
-  },
-  data() {
-    return {
-      countdown: 0,
-      countdownInterval: null,
-      stats: {
-        totalUsers: 0,
-        activeThisWeek: 0,
-        topUser: '',
-        dailyClaimed: false,
-        nextClaimTime: null,
-      },
-      events: [],
-      newsItems: [],
-      dailyClaimed: false,
-      fittePoints: 0
-    };
-  },
+  props: { user: Object },
+
+  data: () => ({
+    events: [],
+    latestMelding: null,
+    fittePoints: 0,
+    dailyClaimed: false,
+    countdown: 0,
+    _timer: null,
+
+    // TODO: replace with gaming API data (Steam/Xbox/Bnet)
+    nowPlaying: [
+      { username: 'Showzky', online: true,  color: 'linear-gradient(135deg,#c8102e,#7a0e1e)', platform: 'steam',   game: 'Satisfactory',    code: 'SF',  artBg: 'linear-gradient(135deg,#0a1628,#1a3a6a)', meta: '2t 14m denne sesjonen' },
+      { username: 'Thomas',  online: true,  color: 'linear-gradient(135deg,#1a4a7a,#0a2a5a)', platform: 'steam',   game: 'Counter-Strike 2', code: 'CS2', artBg: 'linear-gradient(135deg,#280a0a,#6a1a1a)', meta: '45m denne sesjonen' },
+      { username: 'Whiskey69', online: false, color: 'linear-gradient(135deg,#1a6a3a,#0a3a1a)', platform: 'offline', game: 'Sist spilte: Diablo IV', code: '', artBg: '', meta: '220t totalt', lastSeen: '3t siden' },
+    ],
+
+    // TODO: replace with /activity API
+    activityFeed: [
+      { isNew: true, avatar: 'S', color: 'linear-gradient(135deg,#c8102e,#7a0e1e)', online: true,  text: '<strong>Showzky</strong> låste opp achievement <em>Fully Automated</em>', time: '12 min siden', plat: 'steam', platLabel: 'Steam',      game: 'Satisfactory',    thumb: { bg: 'linear-gradient(135deg,#0a1628,#1a3a6a)', code: 'SF' } },
+      { isNew: true, ico: '📅', icoClass: 'ico-event', text: '<strong>Oliver</strong> opprettet hendelse <em>Olivers Party</em>', time: '2t siden', plat: 'hmn', platLabel: 'HMN' },
+      { isNew: true, avatar: 'W', color: 'linear-gradient(135deg,#1a6a3a,#0a3a1a)', text: '<strong>Whiskey69</strong> lastet opp ny banger <em>ORDER4</em> til Bangerfabrikken', time: '3t siden', plat: 'sc', platLabel: 'SoundCloud' },
+      { avatar: 'T', color: 'linear-gradient(135deg,#1a4a7a,#0a2a5a)', text: '<strong>Thomas</strong> fikk skylda for <em>deployment-feilen</em> · § 2.1', time: 'i går', plat: 'hmn', platLabel: 'Automatisk' },
+      { avatar: 'O', color: 'linear-gradient(135deg,#4a1a7a,#2a0a5a)', online: true, text: '<strong>Oliver</strong> låste opp achievement <em>Unbreakable</em>', time: 'i går', plat: 'xbox', platLabel: 'Xbox', game: 'Halo Wars 2', thumb: { bg: 'linear-gradient(135deg,#0a1a0a,#1a5a1a)', code: 'HW2' } },
+    ],
+
+    // TODO: replace with /users?sort=krenket API
+    leaderboard: [
+      { name: 'Thomas',    rank: 'Junior',     pct: 78, color: 'linear-gradient(135deg,#1a4a7a,#0a2a5a)' },
+      { name: 'Andre',     rank: 'Pasient',    pct: 61, color: 'linear-gradient(135deg,#1a3a5a,#0a1a3a)' },
+      { name: 'Showzky',   rank: 'Developer',  pct: 55, color: 'linear-gradient(135deg,#c8102e,#7a0e1e)' },
+      { name: 'Oliver',    rank: 'Spesialist', pct: 42, color: 'linear-gradient(135deg,#4a1a7a,#2a0a5a)' },
+      { name: 'Whiskey69', rank: 'Producer',   pct: 30, color: 'linear-gradient(135deg,#1a6a3a,#0a3a1a)' },
+      { name: 'Håkon',     rank: 'Tekniker',   pct: 18, color: 'linear-gradient(135deg,#5a5a1a,#3a3a0a)' },
+    ],
+  }),
+
   computed: {
-    displayedEvents() {
-      // Only show the first 3 events
-      return this.events.slice(0, 3);
-    },
-    topNews() {
-      return this.newsItems.slice(0, 3);
-    }
-  },
-  methods: {
-    async fetchDailyClaimStatus() {
-      try {
-        const res = await axios.get('get-daily-claim-status', {
-          headers: { Authorization: `Bearer ${this.user.token}` }
-        });
-        this.dailyClaimed = res.data.dailyClaimed;
-        this.nextClaimTime = res.data.nextClaimTime;
-
-        if (this.dailyClaimed && this.nextClaimTime) {
-          const now = new Date();
-          const nextTime = new Date(this.nextClaimTime);
-          const diffSeconds = Math.floor((nextTime - now) / 1000);
-
-          if (diffSeconds > 0) {
-            this.countdown = diffSeconds;
-            this.startCountdown();
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch daily claim status:', err);
+    userInitial() { return (this.user?.username || 'H')[0].toUpperCase(); },
+    topRole() {
+      const roles = (this.user?.roles || []).map(r => r.name?.toLowerCase());
+      for (const r of ['superadmin','admin','developer','staff','moderator','producer']) {
+        if (roles.includes(r)) return r.charAt(0).toUpperCase() + r.slice(1);
       }
+      return this.user?.roles?.[0]?.name || 'Pasient';
+    },
+    avatarStyle() {
+      return this.user?.avatar
+        ? { backgroundImage: `url(${this.user.avatar})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+        : { background: 'linear-gradient(135deg,var(--red),#7a0e1e)' };
+    },
+    currentPoints() { return this.fittePoints || this.user?.fittePoints || 0; },
+  },
+
+  methods: {
+    authH() { return { Authorization: `Bearer ${this.user?.token}` }; },
+
+    async fetchAll() {
+      await Promise.all([this.fetchEvents(), this.fetchMelding(), this.fetchFittePoints(), this.fetchDailyStatus()]);
     },
 
-
-    async fetchStats() {
-      // placeholder → fetch from API later
-      this.stats = {
-        totalUsers: 123,
-        activeThisWeek: 45,
-        topUser: 'Showzky'
-      };
-    },
     async fetchEvents() {
       try {
-        const res = await axios.get('events', {
-          headers: { Authorization: `Bearer ${this.user.token}` }
+        const { data } = await axios.get('events', { headers: this.authH() });
+        const list = data.events || data || [];
+        this.events = list.slice(0, 3).map(e => {
+          const d = new Date(e.event_date || e.date);
+          return { id: e.id, name: e.event_name || e.name, day: d.getDate(), month: d.toLocaleString('nb-NO', { month: 'short' }), time: (e.event_time || e.time || '').slice(0, 5), rsvp: e.rsvp || false };
         });
-
-        // The API returns events in res.data.events
-        this.events = res.data.events.map(event => ({
-          id: event.id,
-          name: event.event_name,
-          date: new Date(event.event_date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric'
-          }),
-          time: event.event_time.split(':').slice(0, 2).join(':'),
-          description: event.event_description
-        }));
-      } catch (err) {
-        console.error('Failed to fetch events:', err);
-        // Fallback to placeholder data if API call fails
-        this.events = [
-          { id: 1, name: 'Game Night', date: 'May 20', time: '19:00' },
-          { id: 2, name: 'Meme Contest', date: 'May 25', time: '20:00' },
-          { id: 3, name: 'Movie Night', date: 'June 2', time: '18:00' }
-        ];
-      }
+      } catch { this.events = []; }
     },
-    async fetchNewsItems() {
+
+    async fetchMelding() {
       try {
-        const res = await axios.get('news', {
-          headers: { Authorization: `Bearer ${this.user.token}` }
-        });
-        this.newsItems = Array.isArray(res.data) ? res.data.slice(0, 5) : [];
-      } catch (err) {
-        console.error('Failed to fetch news:', err);
-        this.newsItems = [];
-      }
-    },
-
-    startCountdown() {
-      if (this.countdownInterval) clearInterval(this.countdownInterval);
-
-      this.countdownInterval = setInterval(() => {
-        if (this.countdown > 0) {
-          this.countdown--;
-        } else {
-          clearInterval(this.countdownInterval);
-          this.dailyClaimed = false;
-        }
-      }, 1000); // run every second
-    },
-
-    formatTime(seconds) {
-      const days = Math.floor(seconds / (24 * 3600));
-      const hours = Math.floor((seconds % (24 * 3600)) / 3600);
-      const minutes = Math.floor((seconds % 3600) / 60);
-      const secs = seconds % 60;
-
-      let parts = [];
-      if (days > 0) parts.push(`${days}d`);
-      if (hours > 0 || days > 0) parts.push(`${hours}h`);
-      if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes}m`);
-      parts.push(`${secs.toString().padStart(2, '0')}s`);
-      return parts.join(' ');
-    },
-
-    async claimDailyReward() {
-      try {
-        const currentPoints = this.user.fittePoints;
-        const newPoints = currentPoints + 50;
-
-        this.dailyClaimed = true;
-
-        const res = await axios.post('update-fitte-points', {
-          points: newPoints,
-          is_daily_reward: true
-        }, {
-          headers: { Authorization: `Bearer ${this.user.token}` }
-        });
-
-        if (res.data && res.data.points) {
-          this.user.fittePoints = res.data.points;
-          this.fittePoints = res.data.points;
-
-          // Update timer with server time if available
-          if (res.data.nextClaimTime) {
-            const now = new Date();
-            const nextTime = new Date(res.data.nextClaimTime);
-            const diffSeconds = Math.floor((nextTime - now) / 1000);
-
-            if (diffSeconds > 0) {
-              this.countdown = diffSeconds;
-              this.startCountdown();
-            }
-          }
-
-          this.$emit('daily-reward-claimed');
-        } else {
-          console.error('Invalid response format from update-fitte-points:', res.data);
-        }
-      } catch (err) {
-        console.error('Failed to update Fitte Points:', err);
-        // If there's an error, reset the claimed state
-        this.dailyClaimed = false;
-        clearInterval(this.countdownInterval);
-      }
+        const { data } = await axios.get('/bedriftsmeldinger');
+        const items = Array.isArray(data) ? data : [];
+        this.latestMelding = items.find(m => m.pinned) || items[0] || null;
+      } catch { this.latestMelding = null; }
     },
 
     async fetchFittePoints() {
       try {
-        const res = await axios.get('get-fitte-points', {
-          headers: { Authorization: `Bearer ${this.user.token}` }
-        });
+        const { data } = await axios.get('get-fitte-points', { headers: this.authH() });
+        this.fittePoints = data.points ?? 0;
+      } catch { this.fittePoints = this.user?.fittePoints || 0; }
+    },
 
-        if (res.data && res.data.points !== undefined) {
-          this.user.fittePoints = res.data.points;
-          this.fittePoints = res.data.points;
-        } else {
-          console.error('Invalid response format from get-fitte-points:', res.data);
+    async fetchDailyStatus() {
+      try {
+        const { data } = await axios.get('get-daily-claim-status', { headers: this.authH() });
+        this.dailyClaimed = data.dailyClaimed;
+        if (data.dailyClaimed && data.nextClaimTime) {
+          const diff = Math.floor((new Date(data.nextClaimTime) - Date.now()) / 1000);
+          if (diff > 0) { this.countdown = diff; this.startCountdown(); }
         }
-      } catch (err) {
-        console.error('Failed to fetch Fitte Points:', err);
-      }
+      } catch {}
     },
 
-    getNewsPreview(content) {
-      // Remove HTML tags for preview, or keep simple tags if you want
-      const text = content.replace(/<[^>]+>/g, ''); // strip HTML tags
-      const maxLength = 100;
-      if (text.length > maxLength) {
-        return text.slice(0, maxLength) + '...';
-      }
-      return text;
-    },
-
-  },
-  mounted() {
-    this.fetchStats();
-    this.fetchEvents();
-    this.fetchFittePoints();
-    this.fetchNewsItems();
-    this.fetchDailyClaimStatus();
-
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
-    const socket = io(socketUrl, {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-      secure: true,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000
-    });
-
-    // Add error handling
-    socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-    });
-
-    socket.on('connect', () => {
-      console.log('Successfully connected to socket server');
-      // Emit setUserId event after successful connection
-      if (this.user && this.user.id) {
-        socket.emit('setUserId', this.user.id);
-      }
-    });
-
-    socket.on('daily_reward_claimed', (data) => {
-      if (data.user_id === this.user.id) {
-        console.log('Received daily_reward_claimed event');
+    async claimDaily() {
+      if (this.dailyClaimed) return;
+      try {
+        const { data } = await axios.post('update-fitte-points', { points: this.currentPoints + 50, is_daily_reward: true }, { headers: this.authH() });
+        this.fittePoints = data.points ?? this.fittePoints;
         this.dailyClaimed = true;
-        this.countdown = data.cooldown || 24 * 3600;  // Use 10 seconds or pull this from backend later THIS IS ISSUE 
-        this.startCountdown();
-      }
-    });
+        if (data.nextClaimTime) {
+          const diff = Math.floor((new Date(data.nextClaimTime) - Date.now()) / 1000);
+          if (diff > 0) { this.countdown = diff; this.startCountdown(); }
+        }
+      } catch (e) { console.error('Claim failed:', e); }
+    },
+
+    startCountdown() {
+      clearInterval(this._timer);
+      this._timer = setInterval(() => {
+        if (this.countdown > 0) this.countdown--;
+        else { clearInterval(this._timer); this.dailyClaimed = false; }
+      }, 1000);
+    },
+
+    formatTime(s) {
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+      return h ? `${h}t ${m}m` : m ? `${m}m ${sec}s` : `${sec}s`;
+    },
+
+    stripHtml(html) {
+      if (!html) return '';
+      const d = document.createElement('div'); d.innerHTML = html;
+      const txt = d.textContent || '';
+      return txt.length > 110 ? txt.slice(0, 110) + '…' : txt;
+    },
+
+    tagClass(cat) {
+      return { oppdatering: 'tag-green', kaos: 'tag-red', hendelse: 'tag-cyan', viktig: 'tag-gold', 'thomas-relatert': 'tag-purple' }[cat] || 'tag-cyan';
+    },
+    categoryLabel(cat) {
+      return { oppdatering: 'Oppdatering', kaos: 'Kaos', hendelse: 'Hendelse', viktig: 'Viktig', 'thomas-relatert': 'Thomas' }[cat] || cat;
+    },
   },
 
-}
+  mounted() {
+    this.fetchAll();
+    const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', { path: '/socket.io', transports: ['websocket', 'polling'], reconnectionAttempts: 5 });
+    socket.on('connect', () => { if (this.user?.id) socket.emit('setUserId', this.user.id); });
+    socket.on('daily_reward_claimed', (d) => {
+      if (d.user_id === this.user?.id) { this.dailyClaimed = true; this.countdown = d.cooldown || 86400; this.startCountdown(); }
+    });
+  },
+  beforeUnmount() { clearInterval(this._timer); },
+};
 </script>
 
 <style scoped>
-.home-logged-in {
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-}
+.hli { min-height: 100vh; }
+.c { width: min(calc(100% - 2.5rem), 1200px); margin: 0 auto; }
 
-.welcome-section,
-.content-card {
-  margin-bottom: 2rem;
-}
+/* ── Welcome band ── */
+.wb { background: linear-gradient(135deg, rgba(200,16,46,0.07), rgba(0,184,208,0.04)); border-bottom: 1px solid var(--border); padding: 18px 0; }
+.wb-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.wb-left { display: flex; align-items: center; gap: 14px; }
+.wb-hi { font-family: var(--font-display); font-size: 20px; font-weight: 900; color: var(--text-bright); letter-spacing: 0.02em; }
+.wb-hi em { color: var(--cyan); font-style: normal; }
+.wb-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.wb-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.wstat { text-align: center; }
+.wv { font-family: var(--font-display); font-size: 20px; font-weight: 900; line-height: 1; }
+.wv.cyan { color: var(--cyan); } .wv.gold { color: var(--gold); } .wv.red { color: var(--red2); }
+.wl { font-size: 10px; color: var(--text-muted); letter-spacing: 0.07em; margin-top: 2px; font-family: var(--font-display); text-transform: uppercase; }
+.ws { width: 1px; height: 32px; background: var(--border); }
 
-.welcome-card {
-  background: #fff;
-  border-radius: 1rem;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
+/* ── Daily reward btn ── */
+.dr-btn { display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: rgba(216,152,32,0.08); border: 1px solid rgba(216,152,32,0.22); border-radius: 8px; cursor: pointer; transition: all 0.18s; color: inherit; }
+.dr-btn:hover:not(:disabled) { background: rgba(216,152,32,0.15); }
+.dr-btn.claimed { opacity: 0.6; cursor: default; }
+.dr-label { font-size: 12px; color: var(--gold); font-family: var(--font-body); font-weight: 500; }
+.dr-sub { font-size: 10px; color: rgba(216,152,32,0.6); display: block; margin-top: 1px; }
+.dr-pill { background: var(--gold); color: #080c12; font-size: 11px; font-weight: 700; font-family: var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 12px; border-radius: 5px; border: none; cursor: pointer; }
 
-.countdown-message {
-  color: #ff9800;
-  font-weight: 500;
-}
+/* ── Avatars ── */
+.av { border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 900; color: white; flex-shrink: 0; position: relative; }
+.av-lg { width: 44px; height: 44px; font-size: 16px; border: 2px solid rgba(200,16,46,0.35); }
+.av-sm { width: 34px; height: 34px; font-size: 13px; }
+.av-xs { width: 30px; height: 30px; font-size: 12px; }
 
-.welcome-header h2 {
-  margin: 0;
-  color: var(--primary);
-  font-size: 1.8rem;
-}
+/* ── Layout ── */
+.main { padding: 24px 0 64px; }
+.layout { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
+.sidebar { display: flex; flex-direction: column; gap: 20px; }
+.mb16 { margin-bottom: 16px; } .mb20 { margin-bottom: 20px; }
 
-.user-stats {
-  display: flex;
-  gap: 2rem;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #eee;
-}
+/* ── Section header ── */
+.sh { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.sh-t { font-family: var(--font-display); font-size: 16px; font-weight: 800; color: var(--text-bright); letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+.sh-t em { color: var(--cyan); font-style: normal; }
+.sh-l { flex: 1; height: 1px; background: linear-gradient(90deg, var(--border2), transparent); }
+.sh-a { font-size: 11px; color: var(--cyan); cursor: pointer; font-family: var(--font-body); white-space: nowrap; }
+.sh-a:hover { text-decoration: underline; }
 
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
+/* ── Card ── */
+.card { background: rgba(255,255,255,0.025); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 
-.stat-label {
-  font-size: 0.9rem;
-  color: #666;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
+/* ── Now playing ── */
+.np-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.np-card { background: rgba(255,255,255,0.025); border: 1px solid var(--border); border-radius: 9px; padding: 12px; transition: all 0.18s; }
+.np-card.playing { border-color: rgba(40,184,96,0.2); }
+.np-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.np-name { font-size: 12px; font-weight: 600; color: var(--text-bright); font-family: var(--font-body); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np-dot { position: absolute; bottom: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--bg); background: #2a3a4a; }
+.np-dot.on { background: var(--green); box-shadow: 0 0 5px var(--green); }
+.np-art { width: 100%; height: 52px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.2); margin-bottom: 7px; }
+.np-offline { font-size: 12px; color: var(--text-muted); font-style: italic; text-align: center; padding: 10px 0 7px; }
+.np-game { font-size: 12px; color: var(--text); font-family: var(--font-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np-game.muted { color: var(--text-muted); }
+.np-meta { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
 
-.stat-value {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #333;
-}
+/* ── Platform badges ── */
+.plat { font-size: 9px; padding: 2px 6px; border-radius: 3px; font-family: var(--font-display); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; flex-shrink: 0; }
+.fp-steam   { background: rgba(27,159,212,0.12);  color: #4ab8e8; }
+.fp-xbox    { background: rgba(16,124,16,0.12);   color: #4ec84e; }
+.fp-hmn     { background: rgba(200,16,46,0.12);   color: var(--red2); }
+.fp-sc      { background: rgba(255,85,0,0.12);    color: #ff6633; }
+.fp-bnet    { background: rgba(20,142,255,0.12);  color: #60aeff; }
+.fp-offline { background: rgba(255,255,255,0.05); color: var(--text-muted); }
 
-/* Content Grid */
-.content-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
-}
+/* ── Activity feed ── */
+.fi { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); transition: background 0.15s; position: relative; }
+.fi:last-child { border-bottom: none; }
+.fi:hover { background: rgba(255,255,255,0.02); }
+.fi-new::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--cyan); }
+.fi-online { position: absolute; bottom: 0; right: 0; width: 9px; height: 9px; background: var(--green); border-radius: 50%; border: 1.5px solid var(--bg); box-shadow: 0 0 5px var(--green); }
+.fi-ico { width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.ico-event { background: rgba(0,184,208,0.1); border: 1px solid rgba(0,184,208,0.2); }
+.ico-ach   { background: rgba(216,152,32,0.12); border: 1px solid rgba(216,152,32,0.2); }
+.fi-body { flex: 1; min-width: 0; }
+.fi-txt { font-size: 13px; color: var(--text); font-family: var(--font-body); line-height: 1.55; }
+.fi-txt :deep(strong) { color: var(--text-bright); font-weight: 500; }
+.fi-txt :deep(em) { color: var(--cyan); font-style: normal; }
+.fi-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fi-thumb { width: 48px; height: 32px; border-radius: 5px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); font-weight: 800; color: rgba(255,255,255,0.3); }
 
-.ps-text {
-  display: block;
-  margin-top: 0.7em;
-  font-size: 1.08em;
-  color: #235c88;
-  background: #f5fafd;
-  padding: 0.7em 1em;
-  border-radius: 0.6em;
-  font-weight: 500;
-  box-shadow: 0 1px 6px #b3d0ea33;
-}
-.highlight {
-  color: #ff006e;
-  font-weight: 700;
-  background: #fffbe7;
-  padding: 0.1em 0.4em;
-  border-radius: 0.4em;
-}
+/* ── Gaming stats grid ── */
+.gs-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.gs { padding: 14px; border-bottom: 1px solid var(--border); }
+.gs:nth-child(odd) { border-right: 1px solid var(--border); }
+.gs:nth-last-child(-n+2) { border-bottom: none; }
+.gv { font-family: var(--font-display); font-size: 20px; font-weight: 900; color: var(--text-bright); line-height: 1; }
+.gv.cyan { color: var(--cyan); } .gv.gold { color: var(--gold); } .gv.green { color: var(--green); } .gv.red { color: var(--red2); }
+.gl { font-size: 10px; color: var(--text-muted); margin-top: 3px; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.07em; }
 
+/* ── Melding preview ── */
+.mp { padding: 14px 16px; }
+.mp-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.mp-tag { display: inline-block; font-size: 9px; padding: 2px 7px; border-radius: 3px; font-weight: 700; letter-spacing: 0.07em; font-family: var(--font-display); text-transform: uppercase; }
+.tag-green  { background: rgba(40,184,96,0.1);  color: var(--green); border: 1px solid rgba(40,184,96,0.2); }
+.tag-red    { background: rgba(200,16,46,0.12); color: var(--red2);  border: 1px solid rgba(200,16,46,0.22); }
+.tag-cyan   { background: rgba(0,184,208,0.1);  color: var(--cyan);  border: 1px solid rgba(0,184,208,0.2); }
+.tag-gold   { background: rgba(216,152,32,0.1); color: var(--gold);  border: 1px solid rgba(216,152,32,0.2); }
+.tag-purple { background: rgba(112,80,216,0.1); color: #9070f0;      border: 1px solid rgba(112,80,216,0.22); }
+.mp-ref   { font-size: 10px; color: var(--text-muted); font-family: var(--font-display); }
+.mp-title { font-size: 15px; font-weight: 600; color: var(--text-bright); font-family: var(--font-body); margin-bottom: 5px; }
+.mp-body  { font-size: 12px; color: rgba(255,255,255,0.35); font-family: var(--font-body); line-height: 1.6; margin-bottom: 12px; }
+.mp-foot  { display: flex; gap: 8px; }
 
-/* Card Styling */
-.content-card {
-  background: #fff;
-  border-radius: 1rem;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  align-self: start;
+/* ── Buttons ── */
+.btn { display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; font-family: var(--font-body); cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; }
+.btn:hover { transform: translateY(-1px); }
+.btn-red { background: linear-gradient(145deg, var(--red), #8a0e1e); color: white; }
+.btn-ghost { background: rgba(255,255,255,0.04); border: 1px solid var(--border2); color: var(--text); }
+.btn-ghost:hover { background: rgba(255,255,255,0.08); }
+
+/* ── Leaderboard ── */
+.lb-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.lb-row:last-child { border-bottom: none; }
+.lb-pos { width: 22px; font-family: var(--font-display); font-size: 15px; font-weight: 900; color: var(--text-muted); text-align: center; flex-shrink: 0; }
+.lb-pos.p1 { color: var(--gold); } .lb-pos.p2 { color: rgba(192,192,192,0.8); } .lb-pos.p3 { color: rgba(180,100,40,0.8); }
+.lb-info { flex: 1; min-width: 0; }
+.lb-name { font-size: 13px; color: var(--text); font-family: var(--font-body); font-weight: 500; }
+.lb-sub  { font-size: 10px; color: var(--text-muted); }
+.lb-bar  { flex: 0 0 56px; }
+.lb-track { background: rgba(255,255,255,0.06); height: 3px; border-radius: 2px; overflow: hidden; margin-top: 4px; }
+.lb-fill  { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--red), var(--red2)); }
+.lb-val   { font-family: var(--font-display); font-size: 15px; font-weight: 800; color: var(--red2); }
+
+/* ── Events ── */
+.ev-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); transition: background 0.15s; text-decoration: none; }
+.ev-row:last-child { border-bottom: none; }
+.ev-row:hover { background: rgba(255,255,255,0.025); }
+.ev-badge { width: 36px; height: 36px; border-radius: 7px; background: rgba(0,184,208,0.1); border: 1px solid rgba(0,184,208,0.2); display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; }
+.ev-day   { font-family: var(--font-display); font-size: 15px; font-weight: 900; color: var(--cyan); line-height: 1; }
+.ev-month { font-size: 8px; color: var(--cyan); opacity: 0.7; letter-spacing: 0.06em; text-transform: uppercase; font-family: var(--font-display); }
+.ev-info  { flex: 1; min-width: 0; }
+.ev-name  { font-size: 13px; color: var(--text-bright); font-family: var(--font-body); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-time  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.ev-rsvp  { font-size: 11px; padding: 4px 10px; border-radius: 5px; background: rgba(0,184,208,0.1); color: var(--cyan); border: 1px solid rgba(0,184,208,0.2); font-family: var(--font-display); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
+.ev-rsvp:hover { background: rgba(0,184,208,0.2); }
+.ev-rsvp.confirmed { background: rgba(40,184,96,0.1); color: var(--green); border-color: rgba(40,184,96,0.2); }
+
+.empty-txt { padding: 16px; font-size: 12px; color: var(--text-muted); text-align: center; font-style: italic; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .np-grid { grid-template-columns: 1fr 1fr; }
 }
-
-/* Section Headers */
-.section-header {
-  margin-bottom: 1rem;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 0.75rem;
-}
-
-.section-header h3 {
-  margin: 0;
-  color: #333;
-  font-size: 1.3rem;
-}
-
-/* Section Footer */
-.section-footer {
-  margin-top: auto;
-  padding-top: 1rem;
-  display: flex;
-  justify-content: center;
-}
-
-/* News Items */
-.news-container {
-  padding: 0.5rem;
-}
-
-.no-news {
-  text-align: center;
-  color: #64748b;
-  font-style: italic;
-  padding: 1rem;
-}
-
-.news-items {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.news-item {
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 1.25rem;
-  transition: all 0.2s ease;
-  border: 1px solid #e2e8f0;
-}
-
-.news-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-
-.news-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
-.news-title {
-  margin: 0;
-  font-size: 1.1rem;
-  color: var(--primary, #2c3e50);
-  font-weight: 600;
-}
-
-.news-date {
-  font-size: 0.9rem;
-  color: #64748b;
-}
-
-.news-content {
-  color: #4b5563;
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-
-.news-content :deep(p) {
-  margin: 0.5rem 0;
-}
-
-.news-content :deep(a) {
-  color: var(--primary, #3b82f6);
-  text-decoration: none;
-}
-
-.news-content :deep(a:hover) {
-  text-decoration: underline;
-}
-
-.view-all-link {
-  text-decoration: none;
-}
-
-/* Stats List */
-.stats-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.stats-list li {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.stat-icon {
-  font-size: 1.25rem;
-}
-
-/* Events List */
-.events-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.event-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.event-icon {
-  font-size: 1.25rem;
-}
-
-.event-link {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-grow: 1;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.5rem;
-  text-decoration: none;
-  color: var(--primary, #333);
-  transition: background-color 0.2s ease;
-}
-
-.event-link:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-.event-name {
-  font-weight: 500;
-}
-
-.event-date {
-  color: #666;
-}
-
-/* Reward Section */
-.reward-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  text-align: center;
-}
-
-.claimed-message {
-  color: #4caf50;
-  font-weight: 500;
-}
-
-/* Buttons */
-button {
-  padding: 0.5rem 1rem;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-button:disabled {
-  background: #e0e0e0;
-  color: #888;
-  cursor: not-allowed;
-}
-
-.secondary-button {
-  background: transparent;
-  color: var(--primary);
-  border: 1px solid var(--primary);
-}
-
-.secondary-button:hover {
-  background: rgba(var(--primary-rgb, 0, 123, 255), 0.1);
-}
-
-.daily-reward button {
-  background: linear-gradient(to bottom right, #ffd700, #ffaa00);
-  color: black;
-  font-weight: bold;
-  padding: 0.7rem 1.2rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease;
-}
-
-.daily-reward button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.daily-reward button:disabled {
-  background: #e0e0e0;
-  color: #888;
-}
-
-.discord-logo {
-  vertical-align: middle;
-  margin-right: 8px;
-}
-
-.discord-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 0;
-}
-
-.discord-button {
-  background-color: #5865F2;
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.5rem;
-  text-decoration: none;
-  font-weight: bold;
-  transition: background-color 0.2s ease;
-}
-
-.discord-button:hover {
-  background-color: #4752C4;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .content-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.games-fun-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.2rem;
-  text-align: center;
-}
-
-.cookie-clicker-btn {
-  background: linear-gradient(90deg, #ffd700 60%, #ffb300 100%);
-  color: #235c88;
-  font-weight: bold;
-  font-size: 1.1rem;
-  padding: 0.7rem 2.2rem;
-  border: none;
-  border-radius: 0.7rem;
-  cursor: pointer;
-  box-shadow: 0 2px 8px #ffd70080;
-  transition: background 0.18s, filter 0.2s;
-  margin-top: 0.7rem;
-  text-shadow: 0 2px 6px #fffbe7bb;
-}
-
-.cookie-clicker-btn:hover {
-  filter: brightness(1.08) drop-shadow(0 0 8px #ffd700);
+@media (max-width: 600px) {
+  .np-grid { grid-template-columns: 1fr; }
+  .wb-right { display: none; }
 }
 </style>
