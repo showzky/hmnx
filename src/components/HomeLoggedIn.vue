@@ -101,14 +101,15 @@
             </div>
 
             <div>
-              <div class="sh mb16"><span class="sh-t">🔥 Krenket-<em>toppen</em></span><div class="sh-l"></div></div>
+              <div class="sh mb16"><span class="sh-t">🔥 CoD-<em>toppen</em></span><div class="sh-l"></div></div>
               <div class="card">
+                <div v-if="!leaderboard.length" class="empty-txt">Ingen CoD-data ennå.</div>
                 <div v-for="(u, i) in leaderboard" :key="u.name" class="lb-row">
-                  <div class="lb-pos" :class="['p1','p2','p3'][i] || ''">{{ i + 1 }}</div>
-                  <div class="av av-xs" :style="{ background: u.color }">{{ u.name[0] }}</div>
-                  <div class="lb-info"><div class="lb-name">{{ u.name }}</div><div class="lb-sub">{{ u.rank }}</div></div>
+                  <div class="lb-pos" :class="['p1','p2','p3'][i] || ''">{{ u.position || i + 1 }}</div>
+                  <div class="av av-xs" :style="leaderboardAvatarStyle(u)">{{ u.name[0] }}</div>
+                  <div class="lb-info"><div class="lb-name">{{ u.name }}</div><div class="lb-sub">{{ u.subtitle }}</div></div>
                   <div class="lb-bar"><div class="lb-track"><div class="lb-fill" :style="{ width: u.pct + '%' }"></div></div></div>
-                  <div class="lb-val">{{ u.pct }}%</div>
+                  <div class="lb-val">{{ u.valueLabel || (u.pct + '%') }}</div>
                 </div>
               </div>
             </div>
@@ -185,6 +186,7 @@ export default {
         this.fetchFittePoints(),
         this.fetchDailyStatus(),
         this.fetchHomeSummary(),
+        this.fetchCodLeaderboard(),
       ]);
     },
 
@@ -265,6 +267,25 @@ export default {
       }
     },
 
+    async fetchCodLeaderboard() {
+      try {
+        const { data } = await axios.get('cod/leaderboard', { headers: this.authH() });
+        const rows = Array.isArray(data?.leaderboard) ? data.leaderboard : [];
+        this.leaderboard = rows.map((row, index) => ({
+          position: row.position || index + 1,
+          name: row.name || 'Ukjent spiller',
+          subtitle: row.subtitle || 'CoD esports',
+          pct: row.pct || 0,
+          valueLabel: row.value_label || '$0',
+          avatarUrl: row.avatar_url || '',
+          color: row.color || 'linear-gradient(135deg,#0b5cad,#103f73)',
+        }));
+      } catch (error) {
+        console.error('Failed to fetch CoD leaderboard:', error);
+        this.leaderboard = [];
+      }
+    },
+
     async claimDaily() {
       if (this.dailyClaimed) return;
       try {
@@ -338,6 +359,17 @@ export default {
       return { background: thumb?.bg || 'linear-gradient(135deg,#0a1628,#1a3a6a)' };
     },
 
+    leaderboardAvatarStyle(entry) {
+      if (entry?.avatarUrl) {
+        return {
+          backgroundImage: `url(${entry.avatarUrl})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        };
+      }
+      return { background: entry?.color || 'linear-gradient(135deg,#0b5cad,#103f73)' };
+    },
+
     stripHtml(html) {
       if (!html) return '';
       const d = document.createElement('div');
@@ -356,6 +388,7 @@ export default {
   },
 
   mounted() {
+    this.leaderboard = [];
     this.fetchAll();
     const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
     const socketBase = (import.meta.env.VITE_SOCKET_URL || '').replace(/\/$/, '') || (apiBase.endsWith('/api') ? apiBase.slice(0, -4) : apiBase) || 'http://localhost:5000';

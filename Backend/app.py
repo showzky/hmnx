@@ -521,8 +521,16 @@ def get_openxbl_api_key():
     return (os.getenv('OPENXBL_API_KEY') or os.getenv('XBL_IO_API_KEY') or '').strip()
 
 
+def get_cito_api_key():
+    return (os.getenv('CITO_API_KEY') or '').strip()
+
+
 def is_openxbl_configured():
     return bool(get_openxbl_api_key())
+
+
+def is_cito_configured():
+    return bool(get_cito_api_key())
 
 
 def openxbl_api_get(path, params=None):
@@ -537,6 +545,24 @@ def openxbl_api_get(path, params=None):
             'X-Authorization': api_key,
             'Accept': 'application/json',
             'Accept-Language': 'en-US',
+        },
+        timeout=8,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def cito_api_get(path, params=None):
+    api_key = get_cito_api_key()
+    if not api_key:
+        raise RuntimeError('CITO_API_KEY is not configured')
+
+    response = requests.get(
+        f"https://api.citoapi.com/api/v1/{path.lstrip('/')}",
+        params=params,
+        headers={
+            'Authorization': f'Bearer {api_key}',
+            'Accept': 'application/json',
         },
         timeout=8,
     )
@@ -3616,6 +3642,66 @@ def get_public_upcoming_hendelser():
     except Exception as e:
         print(f"Database error fetching public hendelser: {e}")
         return jsonify({"error": "Failed to fetch hendelser"}), 500
+
+
+@app.route('/api/cod/leaderboard', methods=['GET'])
+@jwt_required()
+def get_cod_leaderboard():
+    try:
+        if not is_cito_configured():
+            return jsonify({
+                "configured": False,
+                "leaderboard": [],
+                "message": "CITO_API_KEY mangler i backend-env.",
+            }), 200
+
+        payload = cito_api_get('cod/leaderboards/earnings')
+        rows = payload.get('data') or []
+        trimmed_rows = [row for row in rows if isinstance(row, dict)][:6]
+
+        highest_earnings = max(
+            [parse_int(row.get('totalEarnings') or row.get('earnings')) for row in trimmed_rows] or [0]
+        )
+
+        gradients = [
+            'linear-gradient(135deg,#0b5cad,#103f73)',
+            'linear-gradient(135deg,#c8102e,#7a0e1e)',
+            'linear-gradient(135deg,#7a3cff,#3a1b75)',
+            'linear-gradient(135deg,#12805b,#0f4d38)',
+            'linear-gradient(135deg,#d89820,#8a6112)',
+            'linear-gradient(135deg,#3556a8,#1d2f63)',
+        ]
+
+        leaderboard = []
+        for index, row in enumerate(trimmed_rows, start=1):
+            earnings = parse_int(row.get('totalEarnings') or row.get('earnings'))
+            percent = int(round((earnings / highest_earnings) * 100)) if highest_earnings else 0
+            current_team = row.get('currentTeam') or {}
+            subtitle = (
+                current_team.get('name')
+                or row.get('country')
+                or row.get('region')
+                or 'CoD esports'
+            )
+
+            leaderboard.append({
+                'position': index,
+                'name': first_non_empty(row.get('ign'), row.get('playerName'), row.get('realName'), 'Ukjent spiller'),
+                'subtitle': subtitle,
+                'pct': percent,
+                'value': earnings,
+                'value_label': f"${earnings:,.0f}",
+                'avatar_url': row.get('imageUrl'),
+                'color': gradients[(index - 1) % len(gradients)],
+            })
+
+        return jsonify({
+            "configured": True,
+            "leaderboard": leaderboard,
+        }), 200
+    except Exception as e:
+        print(f"Cito leaderboard error: {e}")
+        return jsonify({"error": "Failed to fetch CoD leaderboard"}), 500
 
 
 # NEW: API endpoint to get upcoming events: /api/events (GET)
