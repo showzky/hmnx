@@ -14,13 +14,11 @@
           <h1>
             <span class="t1">Profesjonelt</span>
             <span class="t2">Uansvarlige</span>
-            <span class="t3">Siden 2024 · § 1.1</span>
+            <span class="t3">Siden 2024</span>
           </h1>
           <p class="hero-desc">
-            Et internt univers for <strong>6 venner fra Trondheim</strong> med særegen
-            dømmekraft. Hendelser, musikk, gaming og
-            <strong>full kontroll på totalt ukontrollert drift</strong>.
-            Årsaken til de fleste hendelser er fortsatt under utredning.
+            HMN MentalPasienter. vi driver med mye rart skal jeg si deg.
+            Musikk, gaming og ikke minst HMS der er vi ekstra gode :)
           </p>
           <div class="hero-cta">
             <button class="btn btn-red" @click="$router.push('/login')">Logg inn</button>
