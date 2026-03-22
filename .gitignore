@@ -142,6 +142,7 @@ dist-ssr
 .env.*
 !.env.development.example
 !.env.production.example
+!.env.production
 Backend/.env.backend.development
 Backend/.env.backend.production
 !Backend/.env.backend.development.example
