@@ -1209,11 +1209,23 @@ def debug_session():
 
 
 if os.getenv('FLASK_ENV') == 'production':
-    app.config.update(
-        SESSION_COOKIE_DOMAIN='.hmnmentalpasienter.no',
-        SESSION_COOKIE_SAMESITE='None',
-        SESSION_COOKIE_SECURE=True
-    )
+    backend_url = (os.getenv('BACKEND_URL') or '').lower()
+
+    # Only pin the session cookie to the custom domain when the backend is
+    # actually served from that domain. Render callback traffic on *.onrender.com
+    # needs a host-only cookie or OAuth state validation will fail.
+    if 'hmnmentalpasienter.no' in backend_url:
+        app.config.update(
+            SESSION_COOKIE_DOMAIN='.hmnmentalpasienter.no',
+            SESSION_COOKIE_SAMESITE='None',
+            SESSION_COOKIE_SECURE=True
+        )
+    else:
+        app.config.update(
+            SESSION_COOKIE_DOMAIN=None,
+            SESSION_COOKIE_SAMESITE='Lax',
+            SESSION_COOKIE_SECURE=True
+        )
 import base64
 import hashlib
 import hmac
