@@ -116,9 +116,9 @@ const krenkethetLabel = computed(() => {
 
 // ── Computed: update list with hardcoded fallbacks ─────────────────────────
 const FALLBACK_MELDINGER = [
-  { title: 'Forum offisielt nedlagt',     meta: 'for lenge siden · permanent',  desc: 'Savnet av ingen. Minnes med en viss lettelse og en kopp kaffe.' },
-  { title: 'Discord sentralbord i drift', meta: 'løpende · HMN-MSG-018',        desc: 'TimeCraft Discord kjører som hub for koordinert tull og spontane planer ingen egentlig hadde.' },
-  { title: 'Thomas fikk skylda igjen',    meta: 'i dag · automatisk · § 2.1',   desc: 'Systemet fungerer som det skal. Ingen videre kommentarer.' },
+  { title: 'Systemmelding: API i restitusjon',      meta: 'nå · HMN-SYS-503 · midlertidig',  desc: 'Bedriftsmeldinger lastes fra klinisk database. Serveren er i observasjon. Prognose: god.' },
+  { title: 'Thomas fikk skylda for nedetid',        meta: 'i dag · automatisk · § 2.1',       desc: 'Varselet ble utstedt uten forutgående symptomer. Thomas benekter alt. Journalen oppdateres.' },
+  { title: 'Discord sentralbord: operativt',        meta: 'løpende · REF: HMN-MSG-018',       desc: 'Koordinert kommunikasjon pågår. Bivirkninger inkluderer spontane meninger og uplanlagte planer.' },
 ];
 const displayMeldinger = computed(() =>
   rawMeldinger.value.length
@@ -133,9 +133,9 @@ const BADGE_MAP = {
   login:    { cls: 'evb-cyan', label: 'Logg inn' },
 };
 const FALLBACK_HENDELSER = [
-  { title: "Olivers Party 🎉",  dateLabel: '29.03.2025 · 22:07',              badge: BADGE_MAP.required },
-  { title: 'Neste kriseøvelse', dateLabel: 'TBD · koordineres av ingen',      badge: BADGE_MAP.thomas },
-  { title: 'Din RSVP-status',   dateLabel: 'logg inn for å bekrefte oppmøte', badge: BADGE_MAP.login },
+  { title: 'Hendelsesregisteret utilgjengelig', dateLabel: 'REF: HMN-EVT-503 · kontakt overlegen', badge: BADGE_MAP.thomas },
+  { title: 'Obligatorisk fremmøteregistrering', dateLabel: 'Dato fastsettes av administrasjonen',  badge: BADGE_MAP.required },
+  { title: 'Logg inn for hendelsesoppdatering', dateLabel: 'Tilgang krever gyldig pasientstatus',   badge: BADGE_MAP.login },
 ];
 const displayHendelser = computed(() =>
   rawHendelser.value.length
@@ -150,21 +150,32 @@ const displayHendelser = computed(() =>
 
 // ── Computed: ticker items ────────────────────────────────────────────────
 const HARDCODED_TICKER = [
-  { text: 'Thomas',                                          highlight: true  },
-  { text: ' logget inn og skyldte på noen',                  highlight: false },
-  { text: 'Krenkethet ',                                     highlight: false },
-  { text: '+12%',                                            highlight: true  },
-  { text: ' etter torsdagsmøtet',                            highlight: false },
-  { text: 'Ny banger lastet opp i ',                         highlight: false },
-  { text: 'Bangerfabrikken',                                 highlight: true  },
-  { text: 'Daglig dose kaffe: ',                             highlight: false },
-  { text: 'administrert',                                    highlight: true  },
-  { text: 'Forum: ',                                         highlight: false },
-  { text: 'fremdeles nedlagt · § 4.2',                       highlight: true  },
-  { text: 'Cookie clicker-avhengighet: ',                    highlight: false },
-  { text: 'ubehandlet',                                      highlight: true  },
-  { text: 'Eksistensiell krise detektert — ',                highlight: false },
-  { text: 'behandles med kebab',                             highlight: true  },
+  { text: 'Thomas',                                                         highlight: true  },
+  { text: ' diagnostisert med kronisk skyldfraskriving · § 2.1 bekreftet', highlight: false },
+  { text: 'Krenkethet ',                                                    highlight: false },
+  { text: '+12%',                                                           highlight: true  },
+  { text: ' etter torsdagsmøtet — behandlingsplan mangler',                highlight: false },
+  { text: 'API-responstid: ',                                               highlight: false },
+  { text: '847ms',                                                          highlight: true  },
+  { text: ' · innenfor klinisk toleransegrense',                           highlight: false },
+  { text: 'Ny banger lastet opp i ',                                        highlight: false },
+  { text: 'Bangerfabrikken',                                                highlight: true  },
+  { text: ' · auditiv behandling anbefalt',                                highlight: false },
+  { text: 'Daglig dose kaffe: ',                                            highlight: false },
+  { text: 'administrert',                                                   highlight: true  },
+  { text: ' · ingen kjente bivirkninger rapportert',                       highlight: false },
+  { text: 'Forum: ',                                                        highlight: false },
+  { text: 'fremdeles nedlagt · § 4.2',                                      highlight: true  },
+  { text: ' · § 4.2 — ingen endring i prognose',                          highlight: false },
+  { text: 'Cookie-klikkavhengighet: ',                                      highlight: false },
+  { text: 'ubehandlet',                                                     highlight: true  },
+  { text: ' · ICD-11 kode F63.8 under vurdering',                         highlight: false },
+  { text: 'Eksistensiell krise detektert — ',                               highlight: false },
+  { text: 'behandles med kebab',                                            highlight: true  },
+  { text: ' og Discord-støttesamtale',                                     highlight: false },
+  { text: 'Systemstatus: ',                                                 highlight: false },
+  { text: 'stabil',                                                         highlight: true  },
+  { text: ' · Thomas holdes under observasjon',                            highlight: false },
 ];
 const tickerItems = computed(() => {
   const apiItems = activityFeed.value

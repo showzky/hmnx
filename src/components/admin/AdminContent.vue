@@ -339,25 +339,7 @@ export default {
     changelogMessage: { type: String, default: '' },
     changelogSuccess: { type: Boolean, default: false },
     widgets: { type: Array, default: () => [] },
-    achievements: {
-      type: Array,
-      default: () => ([
-        {
-          id: 1,
-          title: '10 Hours Active',
-          description: 'Be active for 10 hours!',
-          svg: '<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="#FFD700" stroke="#E5C100" stroke-width="4"/><text x="32" y="40" text-anchor="middle" font-size="24" fill="#222">10h</text></svg>',
-          achieved: false,
-        },
-        {
-          id: 2,
-          title: 'SVG URL Example',
-          description: 'This uses an SVG URL.',
-          svg: '/assets/achievements/example.svg',
-          achieved: true,
-        },
-      ]),
-    },
+    achievements: { type: Array, default: () => [] },
   },
   emits: [
     'addNewTeamMember',
