@@ -34,7 +34,7 @@
             <div class="born-emoji">🎉</div>
             <div class="born-title">Født i kaos</div>
             <div class="born-quote">"Vi møttes faktisk først i 2024 alle sammen face to face"</div>
-            <div class="born-attr">— Thomas, probably · REF: HMN-001</div>
+            <div class="born-attr">— Anonym pasient · REF: HMN-001</div>
           </div>
           <div class="disc">
             <div class="born-emoji">🎮</div>
@@ -59,7 +59,7 @@
             <div>
               <div class="hist-ref">August 2024</div>
               <div class="hist-title">Den store Sunndalsøra-konspirasjonen</div>
-              <div class="hist-sub">Hva skjedde egentlig der oppe? Verden vil aldri vite. Thomas vet. Thomas sier ingenting.</div>
+              <div class="hist-sub">Hva skjedde egentlig der oppe? Verden vil aldri vite. Etterforskning pågår. Journalen er forseglet.</div>
             </div>
             <div class="hist-badge">Klassifisert</div>
           </div>
@@ -117,7 +117,7 @@ const krenkethetLabel = computed(() => {
 // ── Computed: update list with hardcoded fallbacks ─────────────────────────
 const FALLBACK_MELDINGER = [
   { title: 'Systemmelding: API i restitusjon',      meta: 'nå · HMN-SYS-503 · midlertidig',  desc: 'Bedriftsmeldinger lastes fra klinisk database. Serveren er i observasjon. Prognose: god.' },
-  { title: 'Thomas fikk skylda for nedetid',        meta: 'i dag · automatisk · § 2.1',       desc: 'Varselet ble utstedt uten forutgående symptomer. Thomas benekter alt. Journalen oppdateres.' },
+  { title: 'Årsak til nedetid: ukjent',              meta: 'i dag · automatisk · § 2.1',       desc: 'Varselet ble utstedt uten forutgående symptomer. Journalen oppdateres. Etterforskingen pågår.' },
   { title: 'Discord sentralbord: operativt',        meta: 'løpende · REF: HMN-MSG-018',       desc: 'Koordinert kommunikasjon pågår. Bivirkninger inkluderer spontane meninger og uplanlagte planer.' },
 ];
 const displayMeldinger = computed(() =>
@@ -129,11 +129,11 @@ const displayMeldinger = computed(() =>
 // ── Computed: hendelser with hardcoded fallbacks ───────────────────────────
 const BADGE_MAP = {
   required: { cls: 'evb-gold', label: 'Påkrevd oppmøte' },
-  thomas:   { cls: 'evb-red',  label: 'Skyld på Thomas' },
+  sporadisk: { cls: 'evb-red',  label: 'Sporadisk' },
   login:    { cls: 'evb-cyan', label: 'Logg inn' },
 };
 const FALLBACK_HENDELSER = [
-  { title: 'Hendelsesregisteret utilgjengelig', dateLabel: 'REF: HMN-EVT-503 · kontakt overlegen', badge: BADGE_MAP.thomas },
+  { title: 'Hendelsesregisteret utilgjengelig', dateLabel: 'REF: HMN-EVT-503 · kontakt overlegen', badge: BADGE_MAP.sporadisk },
   { title: 'Obligatorisk fremmøteregistrering', dateLabel: 'Dato fastsettes av administrasjonen',  badge: BADGE_MAP.required },
   { title: 'Logg inn for hendelsesoppdatering', dateLabel: 'Tilgang krever gyldig pasientstatus',   badge: BADGE_MAP.login },
 ];
@@ -150,8 +150,8 @@ const displayHendelser = computed(() =>
 
 // ── Computed: ticker items ────────────────────────────────────────────────
 const HARDCODED_TICKER = [
-  { text: 'Thomas',                                                         highlight: true  },
-  { text: ' diagnostisert med kronisk skyldfraskriving · § 2.1 bekreftet', highlight: false },
+  { text: 'Kronisk skyldfraskriving',                                        highlight: true  },
+  { text: ' diagnostisert i populasjonen · § 2.1 bekreftet',               highlight: false },
   { text: 'Krenkethet ',                                                    highlight: false },
   { text: '+12%',                                                           highlight: true  },
   { text: ' etter torsdagsmøtet — behandlingsplan mangler',                highlight: false },
@@ -175,7 +175,7 @@ const HARDCODED_TICKER = [
   { text: ' og Discord-støttesamtale',                                     highlight: false },
   { text: 'Systemstatus: ',                                                 highlight: false },
   { text: 'stabil',                                                         highlight: true  },
-  { text: ' · Thomas holdes under observasjon',                            highlight: false },
+  { text: ' · ukjent aktør holdes under observasjon',                      highlight: false },
 ];
 const tickerItems = computed(() => {
   const apiItems = activityFeed.value

@@ -3,7 +3,7 @@
     <div class="settings-page-head">
       <div class="settings-page-title">Inn<em>stillinger</em></div>
       <div class="settings-page-sub">
-        Globale sideinnstillinger. Endre med forsiktighet. Thomas har skylda uansett.
+        Globale sideinnstillinger. Endre med forsiktighet. § 9.1 garanterer ingenting.
       </div>
     </div>
 
@@ -128,7 +128,7 @@
             v-model="maintenancePageMessage"
             class="settings-form-textarea"
             rows="2"
-            placeholder="Vi er snart tilbake. Thomas fikser det."
+            placeholder="Vi er snart tilbake. Prognosen er god."
           ></textarea>
           <div class="settings-form-hint">
             Vises til brukere som prover a besoke siden under vedlikehold.
@@ -179,7 +179,7 @@ export default {
       operationsMessage: this.maintenanceBannerMessage || 'Forum-tjenesten er utilgjengelig grunnet eksistensiell krise. Forventet retur: Aldri.',
       registrationOpen: true,
       maxPatients: 0,
-      maintenancePageMessage: 'Vi er snart tilbake. Thomas fikser det.'
+      maintenancePageMessage: 'Vi er snart tilbake. Prognosen er god.'
     };
   },
   computed: {
@@ -216,7 +216,7 @@ export default {
       this.operationsMessage = this.maintenanceBannerMessage || 'Forum-tjenesten er utilgjengelig grunnet eksistensiell krise. Forventet retur: Aldri.';
       this.registrationOpen = true;
       this.maxPatients = 0;
-      this.maintenancePageMessage = 'Vi er snart tilbake. Thomas fikser det.';
+      this.maintenancePageMessage = 'Vi er snart tilbake. Prognosen er god.';
     }
   }
 };

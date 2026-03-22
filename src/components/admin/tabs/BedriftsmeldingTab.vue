@@ -234,14 +234,14 @@ export default {
         { value: 'hendelse',       label: 'Hendelse',       cls: 't-hendelse' },
         { value: 'oppdatering',    label: 'Oppdatering',    cls: 't-oppdatering' },
         { value: 'viktig',         label: 'Viktig',         cls: 't-viktig' },
-        { value: 'thomas-relatert',label: 'Thomas-relatert',cls: 't-thomas' },
+        { value: 'thomas-relatert',label: 'Sporadisk',cls: 't-sporadisk' },
       ],
       filters: [
         { value: 'alle',           label: 'Alle' },
         { value: 'festet',         label: 'Festet' },
         { value: 'oppdatering',    label: 'Oppdatering' },
         { value: 'kaos',           label: 'Kaos' },
-        { value: 'thomas-relatert',label: 'Thomas' },
+        { value: 'thomas-relatert',label: 'Sporadisk' },
       ],
     };
   },
@@ -378,7 +378,7 @@ export default {
         kaos: 'Kaos',
         hendelse: 'Hendelse',
         viktig: 'Viktig',
-        'thomas-relatert': 'Thomas-relatert',
+        'thomas-relatert': 'Sporadisk',
       };
       return map[cat] || cat;
     },
@@ -492,8 +492,8 @@ export default {
 .t-oppdatering .tc-dot  { background:var(--green); }
 .t-viktig       { background:rgba(216,152,32,0.1); color:var(--gold);  border-color:rgba(216,152,32,0.25); }
 .t-viktig .tc-dot       { background:var(--gold); }
-.t-thomas       { background:rgba(112,80,216,0.1); color:#9070f0;      border-color:rgba(112,80,216,0.25); }
-.t-thomas .tc-dot       { background:#9070f0; }
+.t-sporadisk       { background:rgba(112,80,216,0.1); color:#9070f0;      border-color:rgba(112,80,216,0.25); }
+.t-sporadisk .tc-dot       { background:#9070f0; }
 
 /* Toggle */
 .toggle-row {

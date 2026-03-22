@@ -75,7 +75,7 @@
                 <div class="gs"><div class="gv cyan">5,840t</div><div class="gl">Total spilltid</div></div>
                 <div class="gs"><div class="gv gold">284,200</div><div class="gl">Gamerscore</div></div>
                 <div class="gs"><div class="gv green">1,247</div><div class="gl">Achievements</div></div>
-                <div class="gs"><div class="gv red">Thomas</div><div class="gl">Skyld-leder</div></div>
+                <div class="gs"><div class="gv red">Ukjent</div><div class="gl">Årsak under utredning</div></div>
               </div>
             </div>
           </div>
@@ -149,7 +149,7 @@ export default {
     nowPlaying: [],
     activityFeed: [],
     leaderboard: [
-      { name: 'Thomas', rank: 'Junior', pct: 78, color: 'linear-gradient(135deg,#1a4a7a,#0a2a5a)' },
+      { name: 'Pasient #7', rank: 'Junior', pct: 78, color: 'linear-gradient(135deg,#1a4a7a,#0a2a5a)' },
       { name: 'Andre', rank: 'Pasient', pct: 61, color: 'linear-gradient(135deg,#1a3a5a,#0a1a3a)' },
       { name: 'Showzky', rank: 'Developer', pct: 55, color: 'linear-gradient(135deg,#c8102e,#7a0e1e)' },
       { name: 'Oliver', rank: 'Spesialist', pct: 42, color: 'linear-gradient(135deg,#4a1a7a,#2a0a5a)' },
@@ -339,7 +339,7 @@ export default {
     },
 
     categoryLabel(cat) {
-      return { oppdatering: 'Oppdatering', kaos: 'Kaos', hendelse: 'Hendelse', viktig: 'Viktig', 'thomas-relatert': 'Thomas' }[cat] || cat;
+      return { oppdatering: 'Oppdatering', kaos: 'Kaos', hendelse: 'Hendelse', viktig: 'Viktig', 'thomas-relatert': 'Sporadisk' }[cat] || cat;
     },
   },
 

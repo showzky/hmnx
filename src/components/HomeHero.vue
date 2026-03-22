@@ -20,7 +20,7 @@
             Et internt univers for <strong>6 venner fra Trondheim</strong> med særegen
             dømmekraft. Hendelser, musikk, gaming og
             <strong>full kontroll på totalt ukontrollert drift</strong>.
-            Thomas har skylda for det meste.
+            Årsaken til de fleste hendelser er fortsatt under utredning.
           </p>
           <div class="hero-cta">
             <button class="btn btn-red" @click="$router.push('/login')">Logg inn</button>
@@ -60,7 +60,7 @@
                 <span class="sp-val c-cyan">{{ stats.kommende_hendelser_count !== null ? stats.kommende_hendelser_count : '—' }}</span>
               </div>
               <div class="sp-row">
-                <span class="sp-key">Thomas sin skyld</span>
+                <span class="sp-key">Uforklarte hendelser</span>
                 <span class="sp-val c-gold">∞</span>
               </div>
             </template>

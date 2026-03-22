@@ -28,9 +28,9 @@
             <div class="stat-sub">alle aktive, dessverre</div>
           </div>
           <div class="stat-card sc2">
-            <div class="stat-label">Skyld gitt til Thomas</div>
+            <div class="stat-label">Uforklarte hendelser</div>
             <div class="stat-val sv-red">∞</div>
-            <div class="stat-sub">ubestridt verdensrekord</div>
+            <div class="stat-sub">under kontinuerlig utredning</div>
           </div>
           <div class="stat-card sc3">
             <div class="stat-label">Kaffe konsumert</div>
@@ -130,12 +130,12 @@ export default {
       team: [],
       timeline: [
         { icon: '🧠', date: '2024 — Starten', title: 'Født i kaos', desc: '"Vi møttes faktisk først i 2024 alle sammen face to face." Ingen visste hva de hadde begynt på.' },
-        { icon: '🔥', date: 'August 2024 — REF: HMN-001', title: 'Den store Sunndalsøra-konspirasjonen', desc: 'Hva skjedde egentlig der oppe? Verden vil aldri vite. Thomas vet. Thomas sier ingenting.' },
-        { icon: '💻', date: '2025 — Nå', title: 'Portalen åpner', desc: 'HMN Mental Pasienter lanserer offisielt. § 7.7 garanterer ingenting. Thomas fikk skylda for deployment-feilen.' },
+        { icon: '🔥', date: 'August 2024 — REF: HMN-001', title: 'Den store Sunndalsøra-konspirasjonen', desc: 'Hva skjedde egentlig der oppe? Verden vil aldri vite. Etterforskning pågår. Journalen er forseglet.' },
+        { icon: '💻', date: '2025 — Nå', title: 'Portalen åpner', desc: 'HMN Mental Pasienter lanserer offisielt. § 7.7 garanterer ingenting. Årsaken til deployment-feilen er fortsatt under utredning.' },
       ],
       values: [
         { icon: '🤝', title: 'Forståelse', description: 'Vi lytter først, diagnostiserer senere. Eller ikke i det hele tatt. Begge deler er greit.' },
-        { icon: '👁️', title: 'Åpenhet', description: 'Ingen skjulte agendaer eller kostnader. Thomas vet hva han har gjort.' },
+        { icon: '👁️', title: 'Åpenhet', description: 'Ingen skjulte agendaer eller kostnader. Journalene er tilgjengelig for alle involverte parter.' },
         { icon: '💡', title: 'Innovasjon', description: 'Kombinerer tradisjonell og digital hjelp. Begge er like ubrukelige, men på en sjarmerende måte.' },
       ],
     };

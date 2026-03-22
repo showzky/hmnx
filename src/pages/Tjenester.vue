@@ -21,7 +21,7 @@
               <h3>Odin's 5-STEGS PROTOKOLL</h3>
               <ol class="protocol-list">
                 <li>Panikk</li>
-                <li>Skyld på Thomas</li>
+                <li>Finn en syndebukk</li>
                 <li>Spis kebab</li>
                 <li>Nekt alt</li>
                 <li>Gjenta</li>
@@ -74,7 +74,7 @@
         wifiBars: '📶📶📶📶',
         panicFeed: [
           '03:14 - Oliver: HVORFOR ER HIMMELEN BLÅ?!',
-          '04:20 - Thomas: Hvem stjæler alltid sokker mine??'
+          '04:20 - Pasient #7: Hvem stjæler alltid sokker mine??'
         ]
       };
     },

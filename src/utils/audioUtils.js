@@ -7,7 +7,7 @@ export function formatTime(seconds) {
   export function getRandomPanicMessage() {
     const messages = [
       "HVORFOR ER HIMMELEN BLÅ?!",
-      "Thomas: Hvem stjæler alltid sokker mine?",
+      "Hvem stjæler alltid sokker mine?",
       "Hvor er katten min?!",
       "PANIKK!!"
     ];

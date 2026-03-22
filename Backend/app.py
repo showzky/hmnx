@@ -222,7 +222,20 @@ def sanitize_svg(svg_data):
 # -------------------------
 # Initialize Extensions
 # -------------------------
-CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+configured_frontend_origin = (os.getenv('FRONTEND_URL') or '').rstrip('/')
+allowed_cors_origins = [
+    origin for origin in {
+        configured_frontend_origin,
+        'http://localhost:5173',
+        'http://localhost:5174',
+    } if origin
+]
+
+CORS(
+    app,
+    resources={r"/api/*": {"origins": allowed_cors_origins}},
+    supports_credentials=True
+)
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 bcrypt = Bcrypt(app)

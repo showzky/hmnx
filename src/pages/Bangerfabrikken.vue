@@ -205,7 +205,7 @@ export default {
           : [];
       } catch (err) {
         console.error('Failed to fetch Bangerfabrikken tracks:', err);
-        error.value = 'Kunne ikke laste bangere. Thomas har skylda.';
+        error.value = 'Kunne ikke laste bangere. REF: HMN-503 · Årsaken er under utredning.';
       } finally {
         loading.value = false;
       }

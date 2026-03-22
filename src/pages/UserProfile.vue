@@ -70,7 +70,7 @@
                 <div class="sr"><span class="sr-label">Krenkethetsnivå</span><span class="sr-val c-red">{{ krenketDisplay }}</span></div>
                 <div class="sr"><span class="sr-label">Achievements</span><span class="sr-val c-cyan">—</span></div>
                 <div class="sr"><span class="sr-label">Hendelser deltatt</span><span class="sr-val c-gold">—</span></div>
-                <div class="sr"><span class="sr-label">Thomas skyld-poeng</span><span class="sr-val c-green">∞</span></div>
+                <div class="sr"><span class="sr-label">Uforklarte hendelser</span><span class="sr-val c-green">∞</span></div>
               </div>
             </div>
             <div class="scard">

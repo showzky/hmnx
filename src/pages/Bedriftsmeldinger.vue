@@ -109,7 +109,7 @@ const filters = [
   { value: 'kaos',            label: 'Kaos' },
   { value: 'hendelse',        label: 'Hendelse' },
   { value: 'viktig',          label: 'Viktig' },
-  { value: 'thomas-relatert', label: 'Thomas' },
+  { value: 'thomas-relatert', label: 'Sporadisk' },
 ];
 
 const CATEGORY_LABELS = {
@@ -117,7 +117,7 @@ const CATEGORY_LABELS = {
   kaos: 'Kaos',
   hendelse: 'Hendelse',
   viktig: 'Viktig',
-  'thomas-relatert': 'Thomas-relatert',
+  'thomas-relatert': 'Sporadisk',
 };
 
 function categoryLabel(cat) {
@@ -130,7 +130,7 @@ function tagClass(cat) {
     kaos: 'pt-kaos',
     hendelse: 'pt-hendelse',
     viktig: 'pt-viktig',
-    'thomas-relatert': 'pt-thomas',
+    'thomas-relatert': 'pt-sporadisk',
   };
   return map[cat] || 'pt-oppdatering';
 }
@@ -249,7 +249,7 @@ onMounted(fetchMeldinger);
 .pt-kaos        { background: rgba(200,16,46,0.12); color: var(--red2);  border: 1px solid rgba(200,16,46,0.22); }
 .pt-hendelse    { background: rgba(0,184,208,0.1);  color: var(--cyan);  border: 1px solid rgba(0,184,208,0.2); }
 .pt-viktig      { background: rgba(216,152,32,0.1); color: var(--gold);  border: 1px solid rgba(216,152,32,0.2); }
-.pt-thomas      { background: rgba(112,80,216,0.1); color: #9070f0;      border: 1px solid rgba(112,80,216,0.22); }
+.pt-sporadisk      { background: rgba(112,80,216,0.1); color: #9070f0;      border: 1px solid rgba(112,80,216,0.22); }
 
 /* ── Featured pinned card ── */
 .featured-card {

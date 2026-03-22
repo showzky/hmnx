@@ -121,7 +121,7 @@
                   <div class="sr"><span class="sr-label">Krenkethetsnivå</span><span class="sr-val c-red">{{ krenketDisplay }}</span></div>
                   <div class="sr"><span class="sr-label">Achievements</span><span class="sr-val c-cyan">{{ achievementCount }}</span></div>
                   <div class="sr"><span class="sr-label">Hendelser deltatt</span><span class="sr-val c-gold">{{ attendedEvents }}</span></div>
-                  <div class="sr"><span class="sr-label">Thomas skyld-poeng</span><span class="sr-val c-green">{{ blameScore }}</span></div>
+                  <div class="sr"><span class="sr-label">Uforklarte hendelser</span><span class="sr-val c-green">{{ blameScore }}</span></div>
                 </div>
               </div>
 

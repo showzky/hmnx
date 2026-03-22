@@ -24,7 +24,7 @@
         <div class="melding-body">
           <div class="melding-title">{{ featuredMelding?.title || 'Ny portal.\nSamme mentale standard.' }}</div>
           <p class="melding-text">
-            {{ featuredMelding?.body || 'HMN går inn i en ny designæra. Penere grensesnitt, bedre oversikt — kaoset er det samme. § 7.7 garanterer fortsatt ingenting, og Thomas er fortsatt mistenkt.' }}
+            {{ featuredMelding?.body || 'HMN går inn i en ny designæra. Penere grensesnitt, bedre oversikt — kaoset er det samme. § 7.7 garanterer fortsatt ingenting. Årsaken til tidligere hendelser er fortsatt under utredning.' }}
           </p>
           <div class="melding-actions">
             <router-link
