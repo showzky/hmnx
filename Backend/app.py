@@ -1777,22 +1777,26 @@ def delete_connection(provider):
 
 
 @app.route('/api/connections/steam/start', methods=['GET'])
+@jwt_required(optional=True)  # CHANGED THIS - allows JWT context without requiring it
 def start_steam_connection():
     user = get_authenticated_user()
     if not user:
-        auth_header = request.headers.get('Authorization')
-        query_token = request.args.get('access_token')
-        user = get_user_from_access_token(auth_header or query_token)
+        query_token = request.args.get('access_token')  # CHANGED THIS - browser passes token via query param
+        user = get_user_from_access_token(query_token)
 
     if not user:
         return jsonify({"msg": "User not found"}), 401
 
     backend_base = get_backend_base_url()
-    nonce = secrets.token_urlsafe(24)
-    session['steam_link_user_id'] = user.id
-    session['steam_link_nonce'] = nonce
 
-    return_to = f"{backend_base}/api/connections/steam/callback?link_nonce={nonce}"
+    # CHANGED THIS - use a signed JWT state token instead of session (survives cross-origin redirects)
+    state_token = create_access_token(
+        identity=str(user.id),
+        additional_claims={"purpose": "steam_link"},
+        expires_delta=timedelta(minutes=10)
+    )
+
+    return_to = f"{backend_base}/api/connections/steam/callback?state={state_token}"
     steam_url = (
         "https://steamcommunity.com/openid/login"
         f"?openid.ns=http://specs.openid.net/auth/2.0"
@@ -1803,7 +1807,7 @@ def start_steam_connection():
         f"&openid.claimed_id=http://specs.openid.net/auth/2.0/identifier_select"
     )
 
-    return jsonify({"redirect_url": steam_url}), 200
+    return redirect(steam_url)  # CHANGED THIS - redirect browser directly instead of returning JSON
 
 
 @app.route('/api/connections/xbox/start', methods=['GET'])
@@ -1817,11 +1821,22 @@ def start_xbox_connection():
 @app.route('/api/connections/steam/callback', methods=['GET'])
 def steam_connection_callback():
     frontend_url = get_frontend_base_url()
-    session_user_id = session.get('steam_link_user_id')
-    session_nonce = session.get('steam_link_nonce')
-    returned_nonce = request.args.get('link_nonce')
 
-    if not session_user_id or not session_nonce or session_nonce != returned_nonce:
+    # CHANGED THIS - decode signed state token instead of reading from session
+    state_token = request.args.get('state')
+    if not state_token:
+        return redirect(f"{frontend_url}/dashboard?connection_error=steam_state_invalid")
+
+    try:
+        state_payload = decode_token(state_token)
+    except Exception:
+        return redirect(f"{frontend_url}/dashboard?connection_error=steam_state_invalid")
+
+    if state_payload.get('purpose') != 'steam_link':
+        return redirect(f"{frontend_url}/dashboard?connection_error=steam_state_invalid")
+
+    session_user_id = state_payload.get('sub')  # CHANGED THIS - user ID from signed token
+    if not session_user_id:
         return redirect(f"{frontend_url}/dashboard?connection_error=steam_state_invalid")
 
     verification_payload = {key: value for key, value in request.args.items() if key.startswith('openid.')}
@@ -1851,7 +1866,7 @@ def steam_connection_callback():
         return redirect(f"{frontend_url}/dashboard?connection_error=steam_id_missing")
 
     steam_id = steam_id_match.group(1)
-    user = User.query.get(int(session_user_id))
+    user = User.query.get(int(session_user_id))  # session_user_id now comes from signed state token
     if not user:
         return redirect(f"{frontend_url}/dashboard?connection_error=user_missing")
 
@@ -1887,9 +1902,7 @@ def steam_connection_callback():
     account.updated_at = datetime.now(timezone.utc)
     db.session.commit()
 
-    session.pop('steam_link_user_id', None)
-    session.pop('steam_link_nonce', None)
-    return redirect(f"{frontend_url}/dashboard?linked=steam")
+    return redirect(f"{frontend_url}/dashboard?linked=steam")  # CHANGED THIS - no session cleanup needed
 
 
 @app.route('/api/connections/xbox/callback', methods=['GET'])

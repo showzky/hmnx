@@ -28,10 +28,14 @@
           </p>
           <div class="melding-actions">
             <router-link
-              :to="featuredMelding?.id ? `/bedriftsmeldinger/${featuredMelding.id}` : '/news'"
+              :to="featuredMelding?.id
+                ? `/bedriftsmeldinger/${featuredMelding.id}`
+                : (featuredMelding?.ctaRoute || '/news')"
               class="btn btn-red"
-            >Les melding</router-link>
-            <button class="btn btn-ghost" @click="$router.push('/about')">Hva er HMN?</button>
+            >{{ featuredMelding?.ctaLabel || 'Les melding' }}</router-link>
+            <button class="btn btn-ghost" @click="$router.push(featuredMelding?.secondaryRoute || '/about')">
+              {{ featuredMelding?.secondaryLabel || 'Hva er HMN?' }}
+            </button>
           </div>
         </div>
       </template>

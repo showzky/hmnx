@@ -105,6 +105,39 @@ const activityFeed     = ref([]);
 
 const loading = ref({ stats: true, featuredMelding: true, meldinger: true, hendelser: true, activity: true });
 
+const FALLBACK_FEATURED_MELDING = {
+  ref: 'HMN-QUIET-001',
+  date: '2026-03-22T09:00:00.000Z',
+  title: 'Stille pÃ¥ tavla.\nBra tegn, egentlig.',
+  body: 'NÃ¥r ingen alarmer gÃ¥r og ingen trenger Ã¥ rope i caps lock, betyr det som regel at systemet oppfÃ¸rer seg. Bedriftsmeldinger dukker opp her nÃ¥r HMN faktisk har noe Ã¥ melde, ikke bare for Ã¥ fylle veggen med stÃ¸y.',
+  ctaLabel: 'Utforsk portalen',
+  ctaRoute: '/about',
+  secondaryLabel: 'Se alle meldinger',
+  secondaryRoute: '/bedriftsmeldinger',
+  fallback: true,
+};
+
+const CURATED_FALLBACK_MELDINGER = [
+  {
+    id: 'quiet-watch',
+    title: 'Observasjonsrommet er rolig',
+    meta: 'nÃ¥ Â· HMN-QUIET-011 Â· lav puls',
+    desc: 'Ingen ferske bedriftsmeldinger akkurat nÃ¥. Teamet har enten kontroll, eller sÃ¥ later de veldig overbevisende som om de har det.',
+  },
+  {
+    id: 'open-door',
+    title: 'DÃ¸ra stÃ¥r fortsatt Ã¥pen',
+    meta: 'lÃ¸pende Â· intern notis Â· sosial sone',
+    desc: 'Discord, Bangerfabrikken og resten av galskapen lever videre mens oppslagstavla tar seg en velfortjent pause.',
+  },
+  {
+    id: 'next-drop',
+    title: 'Neste slipp havner her',
+    meta: 'fremover Â· HMN-MSG-NESTE Â· venteliste',
+    desc: 'NÃ¥r admin publiserer neste melding, fÃ¥r denne kolonnen ekte innhold med Ã©n gang. Inntil da holder vi det rent, ryddig og litt mistenkelig fredelig.',
+  },
+];
+
 // ── Computed: krenkethet label ─────────────────────────────────────────────
 const krenkethetLabel = computed(() => {
   const v = stats.value.krenkethet_index;
@@ -123,7 +156,7 @@ const FALLBACK_MELDINGER = [
 const displayMeldinger = computed(() =>
   rawMeldinger.value.length
     ? rawMeldinger.value.map(m => ({ title: m.title, meta: m.meta || m.date || '', desc: m.body || m.desc || '' }))
-    : FALLBACK_MELDINGER
+    : CURATED_FALLBACK_MELDINGER
 );
 
 // ── Computed: hendelser with hardcoded fallbacks ───────────────────────────
@@ -234,10 +267,13 @@ async function fetchMeldinger() {
           desc:  stripHtml(m.content),
         }));
     } else {
-      featuredMelding.value = null;
+      featuredMelding.value = FALLBACK_FEATURED_MELDING;
       rawMeldinger.value = [];
     }
-  } catch { /* use fallbacks */ } finally {
+  } catch {
+    featuredMelding.value = FALLBACK_FEATURED_MELDING;
+    rawMeldinger.value = [];
+  } finally {
     loading.value.featuredMelding = false;
     loading.value.meldinger       = false;
   }
