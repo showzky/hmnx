@@ -164,15 +164,12 @@ def get_dynamic_log_path():
 
     # 2. Otherwise, dynamic based on FLASK_ENV
     if os.getenv("FLASK_ENV") == "production":
-        return "/var/www/Backend/test_email.log"
+        return os.path.join(os.path.dirname(__file__), "test_email.log")
     else:
         # Use the project directory in development!
         return os.path.join(os.path.dirname(__file__), "test_email.log")
 
 log_path = get_dynamic_log_path()
-os.makedirs(os.path.dirname(log_path), exist_ok=True)
-
-# Ensure the directory exists
 os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
 handler = logging.FileHandler(log_path)
