@@ -108,8 +108,8 @@ const loading = ref({ stats: true, featuredMelding: true, meldinger: true, hende
 const FALLBACK_FEATURED_MELDING = {
   ref: 'HMN-QUIET-001',
   date: '2026-03-22T09:00:00.000Z',
-  title: 'Stille pÃ¥ tavla.\nBra tegn, egentlig.',
-  body: 'NÃ¥r ingen alarmer gÃ¥r og ingen trenger Ã¥ rope i caps lock, betyr det som regel at systemet oppfÃ¸rer seg. Bedriftsmeldinger dukker opp her nÃ¥r HMN faktisk har noe Ã¥ melde, ikke bare for Ã¥ fylle veggen med stÃ¸y.',
+  title: 'Ingen aktiv melding.\nPasienten er stabil.',
+  body: 'Ingen alarmer, ingen kriser og ingen tegn på Thomas-relatert aktivitet. Dette er enten veldig bra eller veldig mistenkelig. § 4.2 anbefaler å ikke tenke for mye på det.',
   ctaLabel: 'Utforsk portalen',
   ctaRoute: '/about',
   secondaryLabel: 'Se alle meldinger',
@@ -121,20 +121,20 @@ const CURATED_FALLBACK_MELDINGER = [
   {
     id: 'quiet-watch',
     title: 'Observasjonsrommet er rolig',
-    meta: 'nÃ¥ Â· HMN-QUIET-011 Â· lav puls',
-    desc: 'Ingen ferske bedriftsmeldinger akkurat nÃ¥. Teamet har enten kontroll, eller sÃ¥ later de veldig overbevisende som om de har det.',
+    meta: 'nå · HMN-QUIET-011 · lav puls',
+    desc: 'Ingen ferske bedriftsmeldinger akkurat nå. Teamet har enten kontroll, eller er så overbevisende at det ser slik ut.',
   },
   {
     id: 'open-door',
-    title: 'DÃ¸ra stÃ¥r fortsatt Ã¥pen',
-    meta: 'lÃ¸pende Â· intern notis Â· sosial sone',
+    title: 'Døra står fortsatt åpen',
+    meta: 'løpende · intern notis · sosial sone',
     desc: 'Discord, Bangerfabrikken og resten av galskapen lever videre mens oppslagstavla tar seg en velfortjent pause.',
   },
   {
     id: 'next-drop',
     title: 'Neste slipp havner her',
-    meta: 'fremover Â· HMN-MSG-NESTE Â· venteliste',
-    desc: 'NÃ¥r admin publiserer neste melding, fÃ¥r denne kolonnen ekte innhold med Ã©n gang. Inntil da holder vi det rent, ryddig og litt mistenkelig fredelig.',
+    meta: 'fremover · HMN-MSG-NESTE · venteliste',
+    desc: 'Når admin publiserer neste melding, får denne kolonnen ekte innhold med én gang. Inntil da holder vi det rent, ryddig og litt mistenkelig fredelig.',
   },
 ];
 

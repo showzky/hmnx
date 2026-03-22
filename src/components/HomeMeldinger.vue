@@ -22,9 +22,9 @@
           <span class="melding-date">{{ formatDate(featuredMelding?.date) || '19. mars 2026' }}</span>
         </div>
         <div class="melding-body">
-          <div class="melding-title">{{ featuredMelding?.title || 'Ny portal.\nSamme mentale standard.' }}</div>
+          <div class="melding-title">{{ featuredMelding?.title || 'Ingen aktiv melding.\nPasienten er stabil.' }}</div>
           <p class="melding-text">
-            {{ featuredMelding?.body || 'HMN går inn i en ny designæra. Penere grensesnitt, bedre oversikt — kaoset er det samme. § 7.7 garanterer fortsatt ingenting. Årsaken til tidligere hendelser er fortsatt under utredning.' }}
+            {{ featuredMelding?.body || 'Ingen alarmer, ingen kriser og ingen tegn på Thomas-relatert aktivitet. Dette er enten veldig bra eller veldig mistenkelig. § 4.2 anbefaler å ikke tenke for mye på det.' }}
           </p>
           <div class="melding-actions">
             <router-link
@@ -32,9 +32,9 @@
                 ? `/bedriftsmeldinger/${featuredMelding.id}`
                 : (featuredMelding?.ctaRoute || '/news')"
               class="btn btn-red"
-            >{{ featuredMelding?.ctaLabel || 'Les melding' }}</router-link>
-            <button class="btn btn-ghost" @click="$router.push(featuredMelding?.secondaryRoute || '/about')">
-              {{ featuredMelding?.secondaryLabel || 'Hva er HMN?' }}
+            >{{ featuredMelding?.ctaLabel || 'Utforsk portalen' }}</router-link>
+            <button class="btn btn-ghost" @click="$router.push(featuredMelding?.secondaryRoute || '/bedriftsmeldinger')">
+              {{ featuredMelding?.secondaryLabel || 'Se alle meldinger' }}
             </button>
           </div>
         </div>
