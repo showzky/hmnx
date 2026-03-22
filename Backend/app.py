@@ -1223,7 +1223,10 @@ if os.getenv('FLASK_ENV') == 'production':
     else:
         app.config.update(
             SESSION_COOKIE_DOMAIN=None,
-            SESSION_COOKIE_SAMESITE='Lax',
+            # Steam linking starts via cross-site XHR from the frontend domain to
+            # the Render backend, so the session cookie must be allowed in a
+            # cross-site context while remaining host-only on *.onrender.com.
+            SESSION_COOKIE_SAMESITE='None',
             SESSION_COOKIE_SECURE=True
         )
 import base64
