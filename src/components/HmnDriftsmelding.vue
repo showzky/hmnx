@@ -36,10 +36,8 @@ const visibleTime = computed(() => {
 
 <style scoped>
 .drifts-bar {
-  background:
-    linear-gradient(90deg, rgba(200,16,46,0.07), rgba(255,255,255,0.015) 22%, rgba(255,255,255,0.015) 100%),
-    var(--bg);
-  border-bottom: 1px solid var(--border);
+  background: rgba(200, 16, 46, 0.06);
+  border-bottom: 1px solid rgba(200, 16, 46, 0.15);
   padding: 7px 2rem;
   display: flex;
   align-items: center;
@@ -52,15 +50,15 @@ const visibleTime = computed(() => {
 .drifts-dot {
   width: 6px;
   height: 6px;
-  background: var(--red2);
+  background: #e8304a;
   border-radius: 50%;
-  box-shadow: 0 0 7px var(--red2);
+  box-shadow: 0 0 7px #e8304a;
   flex-shrink: 0;
   animation: blink 2s infinite;
 }
 
 .drifts-tag {
-  color: var(--red2);
+  color: #e8304a;
   font-family: var(--font-display);
   font-size: 10px;
   letter-spacing: 0.14em;
@@ -70,7 +68,7 @@ const visibleTime = computed(() => {
 }
 
 .drifts-text {
-  color: rgba(255,255,255,0.68);
+  color: rgba(255, 255, 255, 0.65);
   font-size: 11px;
   font-family: var(--font-ui);
   min-width: 0;
@@ -82,7 +80,7 @@ const visibleTime = computed(() => {
 
 .drifts-time {
   margin-left: auto;
-  color: var(--text-muted);
+  color: #3d5668;
   font-size: 10px;
   font-family: var(--font-ui);
   white-space: nowrap;
@@ -91,15 +89,14 @@ const visibleTime = computed(() => {
 
 @keyframes blink {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  50% { opacity: 0.25; }
 }
 
 @media (max-width: 700px) {
   .drifts-bar {
-    padding: 7px 14px;
-    gap: 9px;
+    padding: 8px 14px;
+    gap: 10px;
   }
-
   .drifts-time {
     display: none;
   }

@@ -27,7 +27,10 @@
             {{ featuredMelding?.body || 'HMN går inn i en ny designæra. Penere grensesnitt, bedre oversikt — kaoset er det samme. § 7.7 garanterer fortsatt ingenting, og Thomas er fortsatt mistenkt.' }}
           </p>
           <div class="melding-actions">
-            <button class="btn btn-red" @click="$router.push('/news')">Les melding</button>
+            <router-link
+              :to="featuredMelding?.id ? `/bedriftsmeldinger/${featuredMelding.id}` : '/news'"
+              class="btn btn-red"
+            >Les melding</router-link>
             <button class="btn btn-ghost" @click="$router.push('/about')">Hva er HMN?</button>
           </div>
         </div>
@@ -48,7 +51,7 @@
           v-for="item in displayMeldinger"
           :key="item.id || item.title"
           class="upd"
-          @click="$router.push('/news')"
+          @click="item.id ? $router.push(`/bedriftsmeldinger/${item.id}`) : $router.push('/news')"
         >
           <div class="upd-title">{{ item.title }}</div>
           <div class="upd-meta">{{ item.meta }}</div>

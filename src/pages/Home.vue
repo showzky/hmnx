@@ -193,19 +193,35 @@ async function fetchStats() {
   }
 }
 
+function stripHtml(html) {
+  if (!html) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+}
+
 async function fetchMeldinger() {
   try {
-    const { data } = await api.get('/driftsmeldinger');
-    const driftsmeldinger = Array.isArray(data) ? data : [];
-    if (driftsmeldinger.length) {
-      featuredMelding.value = driftsmeldinger[0];
-      rawMeldinger.value = driftsmeldinger.slice(1, 4).map(item => ({
-        title: item.title,
-        meta: [item.updated_at ? formatDate(item.updated_at) : '', item.ref || '']
-          .filter(Boolean)
-          .join(' · '),
-        body: item.body || item.message || '',
-      }));
+    const { data } = await api.get('/bedriftsmeldinger');
+    const items = Array.isArray(data) ? data : [];
+    if (items.length) {
+      const pinned = items.find(m => m.pinned) || items[0];
+      featuredMelding.value = {
+        id:    pinned.id,
+        ref:   pinned.ref,
+        date:  pinned.created_at,
+        title: pinned.title,
+        body:  stripHtml(pinned.content),
+      };
+      rawMeldinger.value = items
+        .filter(m => m.id !== pinned.id)
+        .slice(0, 3)
+        .map(m => ({
+          id:    m.id,
+          title: m.title,
+          meta:  [formatDate(m.created_at), m.ref].filter(Boolean).join(' · '),
+          desc:  stripHtml(m.content),
+        }));
     } else {
       featuredMelding.value = null;
       rawMeldinger.value = [];

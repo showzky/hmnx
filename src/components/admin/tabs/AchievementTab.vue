@@ -3,7 +3,7 @@
     <div class="sec-head mb24">
       <div>
         <div class="sec-title">Achieve<em>ments</em></div>
-        <div class="sec-subtitle">Administrer badges og prestasjoner for brukere.</div>
+        <div class="sec-subtitle">Opprett achievements, sett betingelser og gi dem til brukere.</div>
       </div>
     </div>
     <AchievementAdmin />

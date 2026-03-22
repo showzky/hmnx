@@ -24,6 +24,9 @@
           <a class="s-item" :class="{ active: activeTab==='content' }" @click.prevent="$emit('set-active', 'content')">
             <span class="s-dot"></span>Events
           </a>
+          <a class="s-item" :class="{ active: activeTab==='bedriftsmeldinger' }" @click.prevent="$emit('set-active', 'bedriftsmeldinger')">
+            <span class="s-dot"></span>Bedriftsmeldinger
+          </a>
           <a class="s-item" v-if="isAdminOrDeveloper" :class="{ active: activeTab==='news' }" @click.prevent="$emit('set-active', 'news')">
             <span class="s-dot"></span>News
           </a>

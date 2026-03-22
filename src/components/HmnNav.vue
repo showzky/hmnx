@@ -21,7 +21,7 @@
         <!-- Nav links -->
         <div class="nav-links">
           <router-link to="/"               class="nl" exact-active-class="active">Hjem</router-link>
-          <router-link to="/news"           class="nl" active-class="active">Bedriftsmeldinger</router-link>
+          <router-link to="/bedriftsmeldinger" class="nl" active-class="active">Bedriftsmeldinger</router-link>
           <router-link to="/tjenester"      class="nl" active-class="active">Tjenester</router-link>
           <router-link to="/about"          class="nl" active-class="active">Om oss</router-link>
           <router-link to="/bangerfabrikken" class="nl" active-class="active">Bangerfabrikken</router-link>
@@ -96,7 +96,11 @@ export default {
       showRequestsList: false,
       notifications: [],
       pendingRequests: [],
-      isDarkMode: localStorage.getItem('darkMode') === 'true',
+      // ── DARK MODE ALWAYS ON ─────────────────────────────────────────
+      // May remove or keep not sure yet
+      // isDarkMode: localStorage.getItem('darkMode') === 'true',
+      isDarkMode: true,
+      // ────────────────────────────────────────────────────────────────
     };
   },
 
@@ -190,8 +194,7 @@ export default {
     },
     viewProfile() {
       this.showDropdown = false;
-      const id = this.auth.user?.id;
-      this.$router.push(id ? `/users/${id}` : '/dashboard');
+      this.$router.push('/dashboard');
     },
     handleAuthAction() {
       this.$emit('toggle-login');
@@ -202,9 +205,12 @@ export default {
       this.$router.push('/');
     },
     toggleDarkMode() {
-      this.isDarkMode = !this.isDarkMode;
-      document.documentElement.classList.toggle('dark-mode', this.isDarkMode);
-      localStorage.setItem('darkMode', String(this.isDarkMode));
+      // ── DARK MODE ALWAYS ON ─────────────────────────────────────────
+      // May remove or keep not sure yet
+      // this.isDarkMode = !this.isDarkMode;
+      // document.documentElement.classList.toggle('dark-mode', this.isDarkMode);
+      // localStorage.setItem('darkMode', String(this.isDarkMode));
+      // ────────────────────────────────────────────────────────────────
     },
     handleClickOutside(event) {
       const avatar = this.$refs.avatarRef;
@@ -223,7 +229,11 @@ export default {
 
   mounted() {
     document.addEventListener('click', this.handleClickOutside);
-    document.documentElement.classList.toggle('dark-mode', this.isDarkMode);
+    // ── DARK MODE ALWAYS ON ─────────────────────────────────────────
+    // May remove or keep not sure yet
+    // document.documentElement.classList.toggle('dark-mode', this.isDarkMode);
+    document.documentElement.classList.add('dark-mode');
+    // ────────────────────────────────────────────────────────────────
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside);

@@ -160,10 +160,16 @@ export default {
       showRequestsList: false,
       notifications: [],
       pendingRequests: [],
-      isDarkMode: localStorage.getItem('darkMode') === 'true'
+      // ── DARK MODE ALWAYS ON ─────────────────────────────────────────
+      // May remove or keep not sure yet
+      // isDarkMode: localStorage.getItem('darkMode') === 'true',
+      isDarkMode: true
+      // ────────────────────────────────────────────────────────────────
     };
   },
-  computed: {
+      this.showDropdown = false;
+      this.$router.push('/dashboard');
+    },
     auth() {
       return useAuthStore();
     },
@@ -322,9 +328,12 @@ export default {
       this.$router.push('/');
     },
     toggleDarkMode() {
-      this.isDarkMode = !this.isDarkMode;
-      document.documentElement.classList.toggle('dark-mode', this.isDarkMode);
-      localStorage.setItem('darkMode', this.isDarkMode);
+      // ── DARK MODE ALWAYS ON ─────────────────────────────────────────
+      // May remove or keep not sure yet
+      // this.isDarkMode = !this.isDarkMode;
+      // document.documentElement.classList.toggle('dark-mode', this.isDarkMode);
+      // localStorage.setItem('darkMode', this.isDarkMode);
+      // ────────────────────────────────────────────────────────────────
     },
     handleClickOutside(event) {
       if (this.showDropdown && this.$refs.avatar && this.$refs.dropdownMenu) {
@@ -338,7 +347,11 @@ export default {
   },
   mounted() {
     document.addEventListener('click', this.handleClickOutside);
-    document.documentElement.classList.toggle('dark-mode', this.isDarkMode);
+    // ── DARK MODE ALWAYS ON ─────────────────────────────────────────
+    // May remove or keep not sure yet
+    // document.documentElement.classList.toggle('dark-mode', this.isDarkMode);
+    document.documentElement.classList.add('dark-mode');
+    // ────────────────────────────────────────────────────────────────
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside);

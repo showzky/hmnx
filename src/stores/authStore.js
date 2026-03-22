@@ -11,6 +11,13 @@ export const useAuthStore = defineStore('auth', {
     fittePoints: 0,
   }),
   actions: {
+    setAuth(user, token) {
+      this.user = user;
+      this.token = token;
+      this.isAuthenticated = true;
+      localStorage.setItem('access_token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+    },
     async fetchFittePoints() {
       try {
         // Hit your existing endpoint
@@ -37,11 +44,31 @@ export const useAuthStore = defineStore('auth', {
     
     // Call this after a successful login API call
     login(user, token) {
-      this.user = user;
-      this.token = token;
-      this.isAuthenticated = true;
-      localStorage.setItem('access_token', token);
-      localStorage.setItem('user', JSON.stringify(user));
+      this.setAuth(user, token);
+    },
+    async hydrateFromToken(tokenOverride = null) {
+      const token = tokenOverride || localStorage.getItem('access_token');
+      if (!token) {
+        this.logout();
+        return null;
+      }
+
+      try {
+        const { data } = await axios.get('/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!data?.user) {
+          throw new Error('Missing user payload');
+        }
+
+        this.setAuth(data.user, token);
+        return data.user;
+      } catch (err) {
+        console.error('Failed to hydrate auth user:', err);
+        this.logout();
+        return null;
+      }
     },
     // Log out the user and clear stored authentication data
     logout() {

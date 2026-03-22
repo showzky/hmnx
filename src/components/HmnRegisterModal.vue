@@ -57,12 +57,17 @@
       Allerede registrert?
       <a href="#" @click.prevent="$emit('switch-login')">Logg inn</a>
     </div>
+
+    <div class="register-page-link">
+      Trenger du mer plass?
+      <RouterLink to="/register" @click="$emit('close')">Åpne registreringsside</RouterLink>
+    </div>
   </HmnModal>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import axios from 'axios'
 import HmnModal from './HmnModal.vue'
@@ -262,4 +267,14 @@ async function handleRegister() {
   font-family: var(--font-ui);
 }
 .register-login-link a { color: var(--cyan); text-decoration: none; font-weight: 500; }
+
+.register-page-link {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+}
+.register-page-link a { color: var(--cyan2); text-decoration: none; font-weight: 500; }
+.register-page-link a:hover { text-decoration: underline; }
 </style>

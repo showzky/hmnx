@@ -51,12 +51,17 @@
       Ikke registrert?
       <a href="#" @click.prevent="$emit('switch-register')">Opprett ny konto</a>
     </div>
+
+    <div class="login-page-link">
+      Foretrekker full side?
+      <RouterLink to="/login" @click="$emit('close')">Åpne innloggingsside</RouterLink>
+    </div>
   </HmnModal>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import axios from 'axios'
 import HmnModal from './HmnModal.vue'
@@ -237,4 +242,14 @@ function handleDiscordLogin() {
 }
 .login-register-link a { color: var(--cyan); text-decoration: none; font-weight: 500; }
 .login-register-link a:hover { text-decoration: underline; }
+
+.login-page-link {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+}
+.login-page-link a { color: var(--cyan2); text-decoration: none; font-weight: 500; }
+.login-page-link a:hover { text-decoration: underline; }
 </style>

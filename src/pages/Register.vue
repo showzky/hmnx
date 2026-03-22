@@ -6,54 +6,61 @@
           <div class="auth-brand-mark">
             <div class="bmi"><span /><span /><span /></div>
           </div>
-          <div class="auth-kicker">Innlogging</div>
-          <h1 class="auth-title">Logg Inn</h1>
-          <p class="auth-sub">Discord callback, vanlige innlogginger og feilmeldinger samles her.</p>
+          <div class="auth-kicker">Registrering</div>
+          <h1 class="auth-title">Opprett Konto</h1>
+          <p class="auth-sub">Dette er den fulle registreringsflyten. Modalen kan fortsatt være en rask snarvei.</p>
         </div>
 
-        <div v-if="status" class="auth-status" :class="statusTone">
+        <div v-if="status" class="auth-status error">
           {{ status }}
         </div>
 
-        <form v-if="!oauthLoading" @submit.prevent="handleLogin">
+        <form @submit.prevent="handleRegister">
           <div class="form-group">
             <label class="form-label">E-post</label>
-            <input
-              v-model="email"
-              type="email"
-              class="form-input"
-              placeholder="din@epost.no"
-              required
-              autocomplete="email"
-            />
+            <input v-model="email" type="email" class="form-input" placeholder="din@epost.no" required autocomplete="email" />
           </div>
 
           <div class="form-group">
             <label class="form-label">Passord</label>
-            <input
-              v-model="password"
-              type="password"
-              class="form-input"
-              placeholder="••••••••"
-              required
-              autocomplete="current-password"
-            />
+            <input v-model="password" type="password" class="form-input" placeholder="••••••••" required autocomplete="new-password" />
+            <div v-if="password" class="password-strength">
+              <div v-for="i in 4" :key="i" class="strength-bar" :class="strengthClass(i)" />
+              <span class="strength-label">{{ strengthLabel }}</span>
+            </div>
           </div>
 
-          <button type="submit" class="auth-submit" :disabled="loading">
-            {{ loading ? 'Logger inn...' : 'Logg inn' }}
+          <div class="form-group">
+            <label class="form-label">Bekreft passord</label>
+            <input
+              v-model="confirmPassword"
+              type="password"
+              class="form-input"
+              :class="{ error: confirmPassword && confirmPassword !== password }"
+              placeholder="••••••••"
+              required
+              autocomplete="new-password"
+            />
+            <span v-if="confirmPassword && confirmPassword !== password" class="form-error">
+              Passordene stemmer ikke
+            </span>
+          </div>
+
+          <div class="form-checkbox-row">
+            <input v-model="acceptedTerms" type="checkbox" class="form-checkbox" required />
+            <span class="form-checkbox-label">
+              Jeg godtar <RouterLink to="/tos">vilkårene</RouterLink> og eventuelle konsekvenser
+            </span>
+          </div>
+
+          <button type="submit" class="auth-submit" :disabled="loading || !canSubmit">
+            {{ loading ? 'Oppretter...' : 'Opprett konto' }}
           </button>
         </form>
 
-        <div class="form-divider">eller</div>
-
-        <button class="discord-btn" type="button" :disabled="oauthLoading" @click="handleDiscordLogin">
-          <i class="fab fa-discord"></i> Logg inn med Discord
-        </button>
-
         <div class="auth-footer">
-          Ikke registrert?
-          <RouterLink to="/register">Opprett ny konto</RouterLink>
+          Allerede registrert?
+          <RouterLink to="/login">Logg inn</RouterLink>
         </div>
       </div>
     </div>
@@ -61,21 +68,20 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { computed, ref } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 
-const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
 const email = ref('')
 const password = ref('')
+const confirmPassword = ref('')
+const acceptedTerms = ref(false)
 const status = ref('')
-const statusTone = ref('error')
 const loading = ref(false)
-const oauthLoading = ref(false)
 
 const apiUrl = computed(() => {
   let url = import.meta.env.VITE_API_URL || ''
@@ -85,11 +91,43 @@ const apiUrl = computed(() => {
   return url
 })
 
-async function handleLogin() {
+const strength = computed(() => {
+  const p = password.value
+  if (!p) return 0
+  let s = 0
+  if (p.length >= 6) s++
+  if (p.length >= 10) s++
+  if (/[A-Z]/.test(p) && /[a-z]/.test(p)) s++
+  if (/\d/.test(p) || /[^a-zA-Z0-9]/.test(p)) s++
+  return s
+})
+
+const strengthLabel = computed(() =>
+  ['', 'Svak', 'OK', 'Bra', 'Sterk'][strength.value] || ''
+)
+
+function strengthClass(i) {
+  if (i > strength.value) return ''
+  return ['', 'weak', 'weak', 'medium', 'strong'][strength.value]
+}
+
+const canSubmit = computed(() =>
+  email.value &&
+  password.value &&
+  confirmPassword.value === password.value &&
+  acceptedTerms.value
+)
+
+async function handleRegister() {
   loading.value = true
   status.value = ''
 
   try {
+    await axios.post(apiUrl.value + 'register', {
+      email: email.value,
+      password: password.value,
+    })
+
     const { data } = await axios.post(apiUrl.value + 'login', {
       email: email.value,
       password: password.value,
@@ -98,41 +136,11 @@ async function handleLogin() {
     auth.login(data.user, data.access_token)
     router.push('/dashboard')
   } catch {
-    statusTone.value = 'error'
-    status.value = 'Feil e-post eller passord. Prøv igjen.'
+    status.value = 'Registrering feilet. Prøv igjen.'
   } finally {
     loading.value = false
   }
 }
-
-function handleDiscordLogin() {
-  window.location.href = apiUrl.value + 'login/discord'
-}
-
-onMounted(async () => {
-  if (route.query.error) {
-    statusTone.value = 'error'
-    status.value = 'Discord-innlogging feilet. Sjekk callback-URL og prøv igjen.'
-  }
-
-  if (route.query.token) {
-    oauthLoading.value = true
-    statusTone.value = 'info'
-    status.value = 'Logger deg inn med Discord...'
-
-    const token = Array.isArray(route.query.token) ? route.query.token[0] : route.query.token
-    const user = await auth.hydrateFromToken(token)
-
-    if (user) {
-      router.replace('/dashboard')
-      return
-    }
-
-    oauthLoading.value = false
-    statusTone.value = 'error'
-    status.value = 'Kunne ikke fullføre Discord-innloggingen.'
-  }
-})
 </script>
 
 <style scoped>
@@ -147,14 +155,10 @@ onMounted(async () => {
   padding: 48px 20px;
 }
 
-.auth-shell {
-  width: min(100%, 1040px);
-  display: grid;
-  place-items: center;
-}
+.auth-shell { width: min(100%, 1040px); display: grid; place-items: center; }
 
 .auth-panel {
-  width: min(100%, 460px);
+  width: min(100%, 500px);
   padding: 30px 28px 24px;
   border-radius: 20px;
   background: rgba(15, 23, 32, 0.88);
@@ -162,11 +166,7 @@ onMounted(async () => {
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
 }
 
-.auth-head {
-  text-align: center;
-  margin-bottom: 22px;
-}
-
+.auth-head { text-align: center; margin-bottom: 22px; }
 .auth-brand-mark {
   width: 52px;
   height: 52px;
@@ -220,18 +220,9 @@ onMounted(async () => {
   text-align: center;
   font-family: var(--font-ui);
   font-size: 13px;
-}
-
-.auth-status.error {
   color: var(--red2);
   background: var(--red-bg);
   border: 1px solid var(--red-border);
-}
-
-.auth-status.info {
-  color: var(--cyan);
-  background: rgba(0, 184, 208, 0.08);
-  border: 1px solid rgba(0, 184, 208, 0.18);
 }
 
 .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
@@ -265,9 +256,45 @@ onMounted(async () => {
   background: var(--surface3);
 }
 
+.form-input.error {
+  border-color: var(--red2);
+  box-shadow: 0 0 0 3px rgba(200, 16, 46, 0.12);
+}
+
+.form-error { font-size: 11px; color: var(--red2); font-family: var(--font-ui); }
+
+.password-strength { margin-top: 8px; display: flex; gap: 4px; align-items: center; }
+.strength-bar { flex: 1; height: 3px; border-radius: 2px; background: var(--border); transition: background var(--transition-base); }
+.strength-bar.weak { background: var(--red2); }
+.strength-bar.medium { background: var(--gold); }
+.strength-bar.strong { background: var(--green); }
+.strength-label { font-size: 10px; color: var(--text-muted); font-family: var(--font-ui); white-space: nowrap; min-width: 50px; text-align: right; }
+
+.form-checkbox-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; }
+.form-checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  flex-shrink: 0;
+  cursor: pointer;
+  margin-top: 1px;
+  accent-color: var(--cyan);
+}
+
+.form-checkbox-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  line-height: 1.6;
+}
+
+.form-checkbox-label a { color: var(--cyan); text-decoration: none; }
+
 .auth-submit {
   width: 100%;
-  margin-top: 8px;
+  margin-top: 20px;
   padding: 12px;
   border: none;
   border-radius: var(--r-md);
@@ -285,42 +312,6 @@ onMounted(async () => {
 
 .auth-submit:hover { box-shadow: var(--shadow-red2); transform: translateY(-1px); }
 .auth-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-
-.form-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 18px 0;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-family: var(--font-ui);
-}
-
-.form-divider::before,
-.form-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-
-.discord-btn {
-  width: 100%;
-  padding: 11px;
-  background: var(--discord-bg);
-  border: 1px solid var(--discord-border);
-  border-radius: var(--r-md);
-  color: var(--discord-text);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: all var(--transition-base);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.discord-btn:hover { background: rgba(88, 101, 242, 0.25); }
-.discord-btn:disabled { opacity: 0.65; cursor: not-allowed; }
 
 .auth-footer {
   text-align: center;

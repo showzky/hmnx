@@ -178,6 +178,8 @@
 
         <ShopTab v-if="activeTab === 'shop'" />
 
+        <BedriftsmeldingTab v-if="activeTab === 'bedriftsmeldinger'" />
+
         <NewsTab v-if="activeTab === 'news'" />
 
         <UsersTab
@@ -256,6 +258,7 @@
 
 <script>
 import AchievementTab from './tabs/AchievementTab.vue';
+import BedriftsmeldingTab from './tabs/BedriftsmeldingTab.vue';
 import ChangeLogTab from './tabs/ChangeLogTab.vue';
 import DashboardTab from './tabs/DashboardTab.vue';
 import EventsTab from './tabs/EventsTab.vue';
@@ -270,6 +273,7 @@ import UsersTab from './tabs/UsersTab.vue';
 export default {
   components: {
     AchievementTab,
+    BedriftsmeldingTab,
     ChangeLogTab,
     DashboardTab,
     EventsTab,

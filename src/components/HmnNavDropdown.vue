@@ -62,6 +62,8 @@
       </div>
     </transition>
 
+    <!-- ── DARK MODE TOGGLE ──────────────────────────────────────────
+    May remove or keep not sure yet
     <div class="dd-divider"></div>
 
     <button class="dd-item" @click="$emit('toggle-dark')">
@@ -70,6 +72,7 @@
     </button>
 
     <div class="dd-divider"></div>
+    ─────────────────────────────────────────────────────────────── -->
 
     <button class="dd-item dd-logout" @click="$emit('logout')">
       <i class="fas fa-sign-out-alt"></i> Utlogging

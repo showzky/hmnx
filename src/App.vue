@@ -8,7 +8,6 @@ import HmnFooter from './components/HmnFooter.vue';
 import HmnLoginModal from './components/HmnLoginModal.vue';
 import HmnRegisterModal from './components/HmnRegisterModal.vue';
 import HmnToast from './components/HmnToast.vue';
-import MaintenanceBanner from './components/MaintenanceBanner.vue';
 
 const showLogin    = ref(false);
 const showRegister = ref(false);
@@ -32,25 +31,25 @@ function switchToLogin() {
 const route = useRoute()
 const hideLayoutRoutes = ['/tos']
 const showLayout = computed(() => !hideLayoutRoutes.includes(route.path))
+const isAuthPage = computed(() => ['/login', '/register'].includes(route.path))
 </script>
 
 <template>
   <div id="app">
     <HmnDriftsmelding v-if="showLayout" />
     <HmnNav v-if="showLayout" @toggle-login="toggleLoginModal" @toggle-register="() => { showRegister = true; showLogin = false; }" />
-    <MaintenanceBanner />
 
     <router-view />
 
     <HmnFooter v-if="showLayout" />
 
     <HmnLoginModal
-      :show="showLogin"
+      :show="showLogin && !isAuthPage"
       @close="showLogin = false"
       @switch-register="switchToRegister"
     />
     <HmnRegisterModal
-      :show="showRegister"
+      :show="showRegister && !isAuthPage"
       @close="showRegister = false"
       @switch-login="switchToLogin"
     />
@@ -63,6 +62,8 @@ const showLayout = computed(() => !hideLayoutRoutes.includes(route.path))
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
 }
 
 footer {

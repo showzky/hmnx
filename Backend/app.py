@@ -6,6 +6,9 @@
 
 from dotenv import load_dotenv
 import os
+import re
+import secrets
+import requests
 from flask import Flask, request, jsonify, redirect, url_for, session, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -60,7 +63,10 @@ print("Loaded MAILERSEND_USERNAME:", os.getenv("MAILERSEND_USERNAME"))
 # Initialize Flask App
 # -------------------------
 app = Flask(__name__, static_folder="/var/www/Backend/static", static_url_path="/static") 
-app.secret_key = os.urandom(24)
+app.secret_key = os.getenv('FLASK_SECRET_KEY') or os.getenv('JWT_SECRET_KEY', 'dev-insecure-secret')
+app.config['SECRET_KEY'] = app.secret_key
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') == 'production'
 
 # Set maximum file upload size to 5MB
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB
@@ -271,11 +277,21 @@ class Friend(db.Model):
 # Configure OAuth with Authlib
 oauth = OAuth(app)
 
+# Discord OAuth configuration
+discord_client_id = os.getenv('DISCORD_CLIENT_ID')
+discord_client_secret = os.getenv('DISCORD_CLIENT_SECRET')
+
+if not discord_client_id or not discord_client_secret:
+    raise RuntimeError(
+        "Discord OAuth is not configured. Set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET "
+        "in the backend environment file."
+    )
+
 # Register Discord as an OAuth provider with the necessary endpoints and scopes
 discord = oauth.register(
     name='discord',  
-    client_id='1356200673636515922',  
-    client_secret='IscsTQvtavYEtCA30VGQMscq1EVJ3J4B',  
+    client_id=discord_client_id,  
+    client_secret=discord_client_secret,  
     access_token_url='https://discord.com/api/oauth2/token', 
     authorize_url='https://discord.com/api/oauth2/authorize',  
     api_base_url='https://discord.com/api/', 
@@ -360,6 +376,7 @@ class User(db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
+    discord_id = db.Column(db.String(32), unique=True, nullable=True)
     password_hash = db.Column(db.String(128), nullable=False)
     
     # Profile information
@@ -375,6 +392,12 @@ class User(db.Model):
     daily_claim_count = db.Column(db.Integer, default=0)
     last_login_date = db.Column(db.Date, nullable=True)
     login_streak = db.Column(db.Integer, default=0)
+    connected_accounts = db.relationship(
+        'ConnectedAccount',
+        backref='user',
+        lazy=True,
+        cascade='all, delete-orphan'
+    )
 
 
 
@@ -386,7 +409,35 @@ class User(db.Model):
     def has_role(self, role_names):
         """Check if a user has any of the specified roles"""
         return any(role.name in role_names for role in self.roles)
-    # Define which ranks are allowed to manage songs
+
+
+class ConnectedAccount(db.Model):
+    __tablename__ = 'connected_account'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    provider = db.Column(db.String(32), nullable=False)
+    provider_account_id = db.Column(db.String(255), nullable=False)
+    display_name = db.Column(db.String(255), nullable=True)
+    avatar_url = db.Column(db.String(500), nullable=True)
+    access_token = db.Column(db.Text, nullable=True)
+    refresh_token = db.Column(db.Text, nullable=True)
+    profile_url = db.Column(db.String(500), nullable=True)
+    connected_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint('provider', 'provider_account_id', name='uq_connected_account_provider_account'),
+        db.UniqueConstraint('user_id', 'provider', name='uq_connected_account_user_provider'),
+    )
+
+    def __repr__(self):
+        return f'<ConnectedAccount {self.provider}:{self.provider_account_id}>'
+# Define which ranks are allowed to manage songs
 allowed_ranks_for_song_management = ['developer', 'producer']
 
 def check_user_rank(user, allowed_ranks):
@@ -404,6 +455,114 @@ def set_setting(key, value):
     else:
         setting = Setting(key=key, value=value)
         db.session.add(setting)
+
+
+def get_authenticated_user():
+    current_user_id = get_jwt_identity()
+    return User.query.get(int(current_user_id)) if current_user_id else None
+
+
+def get_backend_base_url():
+    configured = os.getenv('BACKEND_URL')
+    if configured:
+        return configured.rstrip('/')
+    return request.host_url.rstrip('/')
+
+
+def build_connection_payload(user):
+    connected_accounts = {account.provider.lower(): account for account in user.connected_accounts}
+    discord_suffix = str(user.discord_id)[-4:] if user.discord_id else 'link'
+    steam_account = connected_accounts.get('steam')
+    xbox_account = connected_accounts.get('xbox')
+    battlenet_account = connected_accounts.get('battlenet')
+
+    return {
+        "connections": [
+            {
+                "provider": "steam",
+                "connected": steam_account is not None,
+                "displayName": steam_account.display_name if steam_account else None,
+                "subtitle": "Steam-konto tilkoblet" if steam_account else "Ikke tilkoblet",
+                "avatarUrl": steam_account.avatar_url if steam_account else None,
+                "avatarText": "S",
+                "providerAccountId": steam_account.provider_account_id if steam_account else None,
+                "canDisconnect": steam_account is not None,
+            },
+            {
+                "provider": "xbox",
+                "connected": xbox_account is not None,
+                "displayName": xbox_account.display_name if xbox_account else None,
+                "subtitle": "Ikke tilkoblet",
+                "avatarUrl": xbox_account.avatar_url if xbox_account else None,
+                "avatarText": "X",
+                "providerAccountId": xbox_account.provider_account_id if xbox_account else None,
+                "canDisconnect": xbox_account is not None,
+            },
+            {
+                "provider": "battlenet",
+                "connected": battlenet_account is not None,
+                "displayName": battlenet_account.display_name if battlenet_account else None,
+                "subtitle": "Ikke tilkoblet",
+                "avatarUrl": battlenet_account.avatar_url if battlenet_account else None,
+                "avatarText": "B",
+                "providerAccountId": battlenet_account.provider_account_id if battlenet_account else None,
+                "canDisconnect": battlenet_account is not None,
+            },
+            {
+                "provider": "discord",
+                "connected": bool(user.discord_id),
+                "displayName": user.username or user.email,
+                "subtitle": f"Discord · {discord_suffix}" if user.discord_id else "Primær innlogging mangler",
+                "avatarUrl": user.avatar,
+                "avatarText": "D",
+                "providerAccountId": user.discord_id,
+                "canDisconnect": False,
+            }
+        ]
+    }
+
+
+def fetch_steam_profile(steam_id):
+    steam_api_key = os.getenv('STEAM_WEB_API_KEY')
+    profile = {
+        "display_name": f"Steam {steam_id[-4:]}",
+        "avatar_url": None,
+        "profile_url": f"https://steamcommunity.com/profiles/{steam_id}",
+    }
+
+    if not steam_api_key:
+        return profile
+
+    response = requests.get(
+        'https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/',
+        params={'key': steam_api_key, 'steamids': steam_id},
+        timeout=8
+    )
+    response.raise_for_status()
+    players = response.json().get('response', {}).get('players', [])
+    if not players:
+        return profile
+
+    player = players[0]
+    return {
+        "display_name": player.get('personaname') or profile["display_name"],
+        "avatar_url": player.get('avatarfull') or player.get('avatarmedium') or player.get('avatar'),
+        "profile_url": player.get('profileurl') or profile["profile_url"],
+    }
+
+
+def steam_api_get(interface, method, version, params):
+    steam_api_key = os.getenv('STEAM_WEB_API_KEY')
+    if not steam_api_key:
+        return None
+
+    response = requests.get(
+        f'https://api.steampowered.com/{interface}/{method}/{version}/',
+        params={'key': steam_api_key, **params},
+        timeout=8
+    )
+    response.raise_for_status()
+    return response.json()
     db.session.commit()
 
 
@@ -551,11 +710,12 @@ def debug_session():
 
 
 
-app.config.update(
-    SESSION_COOKIE_DOMAIN='.www.hmnmentalpasienter.no',
-    SESSION_COOKIE_SAMESITE='None',  # or 'None' if you want cross-site
-    SESSION_COOKIE_SECURE=True       # if using HTTPS
-)
+if os.getenv('FLASK_ENV') == 'production':
+    app.config.update(
+        SESSION_COOKIE_DOMAIN='.hmnmentalpasienter.no',
+        SESSION_COOKIE_SAMESITE='None',
+        SESSION_COOKIE_SECURE=True
+    )
 import base64
 import hashlib
 import hmac
@@ -866,9 +1026,25 @@ class News(db.Model):
     content = db.Column(db.Text, nullable=False)
     date = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    
+
     # Relationship to User model
     user = db.relationship('User', backref=db.backref('news_posts', lazy=True))
+
+
+class Bedriftsmelding(db.Model):
+    __tablename__ = 'bedriftsmeldinger'
+    id = db.Column(db.Integer, primary_key=True)
+    ref = db.Column(db.String(20), unique=True, nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    category = db.Column(db.String(50), nullable=False, default='oppdatering')
+    tag = db.Column(db.String(50), nullable=True)
+    pinned = db.Column(db.Boolean, default=False, nullable=False)
+    notify_users = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+    user = db.relationship('User', backref=db.backref('bedriftsmeldinger', lazy=True))
 
 
 
@@ -925,61 +1101,376 @@ def debug_static():
 
 #Discord Register
 @app.route('/login/discord')
+@app.route('/api/login/discord')
 def login_discord():
     redirect_uri = url_for('authorize_discord', _external=True)
     return discord.authorize_redirect(redirect_uri)
 
 @app.route('/authorize/discord')
+@app.route('/api/authorize/discord')
 def authorize_discord():
-    # Exchange the authorization code for an access token from Discord.
-    token = discord.authorize_access_token()
-    print("Access token received:", token)  # Debug: Print token
-
-    # Fetch the user's profile from Discord without extra headers (omit the leading slash)
-    resp = discord.get('users/@me')
-    print("Raw response from /users/@me:", resp.text)  # Debug: Print raw response
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173').rstrip('/')
 
     try:
+        # Exchange the authorization code for an access token from Discord.
+        discord.authorize_access_token()
+
+        # Fetch the user's profile from Discord without extra headers (omit the leading slash)
+        resp = discord.get('users/@me')
         profile = resp.json()
     except Exception as e:
-        print("JSON decoding error:", e)
-        return "Error: Unable to decode JSON response from Discord", 500
+        print("Discord OAuth error:", e)
+        return redirect(f"{frontend_url}/login?error=discord_oauth_failed")
+
+    if not isinstance(profile, dict) or profile.get('id') is None:
+        print("Unexpected Discord profile payload:", profile)
+        return redirect(f"{frontend_url}/login?error=discord_profile_failed")
 
     session['discord_user'] = profile
+    discord_id = str(profile.get('id'))
+    discord_email = profile.get('email')
 
-    # Integrate with your database: Find or create the user
-    user = User.query.filter_by(email=profile.get('email')).first()
+    if not discord_email:
+        return redirect(f"{frontend_url}/login?error=discord_email_missing")
+
+    # Resolve user by Discord identity first, then fall back to email for one-time linking.
+    user = User.query.filter_by(discord_id=discord_id).first()
     if not user:
+        user = User.query.filter_by(email=discord_email).first()
+        if user:
+            conflict = User.query.filter(User.discord_id == discord_id, User.id != user.id).first()
+            if conflict:
+                return redirect(f"{frontend_url}/login?error=discord_already_linked")
+            user.discord_id = discord_id
+
+    if not user:
+        username_base = profile.get('global_name') or profile.get('username') or f"discord_{profile.get('id')}"
+        username_candidate = username_base
+        suffix = 1
+        while User.query.filter_by(username=username_candidate).first():
+            username_candidate = f"{username_base}_{suffix}"
+            suffix += 1
+
         user = User(
-            email=profile.get('email'),
-            username=profile.get('username'),
+            email=discord_email,
+            discord_id=discord_id,
+            username=username_candidate,
             password_hash=bcrypt.generate_password_hash(os.urandom(16)).decode('utf-8')
         )
         db.session.add(user)
+        db.session.commit()
+    else:
+        desired_username = profile.get('global_name') or profile.get('username')
+        if desired_username and user.username != desired_username:
+            if not User.query.filter(User.username == desired_username, User.id != user.id).first():
+                user.username = desired_username
+        if user.discord_id != discord_id:
+            user.discord_id = discord_id
         db.session.commit()
 
     access_token = create_access_token(identity=str(user.id))
     session['jwt_token'] = access_token
 
-    # Redirect to your Vue dashboard with the token as a query parameter
-    return redirect(f"http://localhost:5173/dashboard?token={access_token}")
+    # Redirect to the frontend with the token as a query parameter.
+    return redirect(f"{frontend_url}/login?token={access_token}")
 
 @app.route('/api/me', methods=['GET'])
 @jwt_required()
 def get_current_user():
-    current_user_id = get_jwt_identity()
-    user = User.query.get(int(current_user_id))
+    user = get_authenticated_user()
     if not user:
          return jsonify({"msg": "User not found"}), 404
     return jsonify({
         "user": {
             "id": user.id,
             "email": user.email,
+            "discord_id": user.discord_id,
             "username": user.username,
             "bio": user.bio,
             "avatar": user.avatar,
             "banner": user.banner,
             "roles": [{"id": role.id, "name": role.name} for role in user.roles]
+        }
+    }), 200
+
+
+@app.route('/api/connections', methods=['GET'])
+@jwt_required()
+def get_connections():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    return jsonify(build_connection_payload(user)), 200
+
+
+@app.route('/api/connections/<provider>', methods=['DELETE'])
+@jwt_required()
+def delete_connection(provider):
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    normalized_provider = (provider or '').lower()
+    if normalized_provider == 'discord':
+        return jsonify({"error": "Discord er primær innlogging og kan ikke kobles fra her."}), 400
+
+    account = ConnectedAccount.query.filter_by(
+        user_id=user.id,
+        provider=normalized_provider
+    ).first()
+
+    if not account:
+        return jsonify({"error": "Kontoen er ikke tilkoblet."}), 404
+
+    db.session.delete(account)
+    db.session.commit()
+    return jsonify({"message": f"{normalized_provider} koblet fra."}), 200
+
+
+@app.route('/api/connections/steam/start', methods=['GET'])
+@jwt_required()
+def start_steam_connection():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    backend_base = get_backend_base_url()
+    nonce = secrets.token_urlsafe(24)
+    session['steam_link_user_id'] = user.id
+    session['steam_link_nonce'] = nonce
+
+    return_to = f"{backend_base}/api/connections/steam/callback?link_nonce={nonce}"
+    steam_url = (
+        "https://steamcommunity.com/openid/login"
+        f"?openid.ns=http://specs.openid.net/auth/2.0"
+        f"&openid.mode=checkid_setup"
+        f"&openid.return_to={requests.utils.quote(return_to, safe='')}"
+        f"&openid.realm={requests.utils.quote(backend_base, safe='')}"
+        f"&openid.identity=http://specs.openid.net/auth/2.0/identifier_select"
+        f"&openid.claimed_id=http://specs.openid.net/auth/2.0/identifier_select"
+    )
+
+    return jsonify({"redirect_url": steam_url}), 200
+
+
+@app.route('/api/connections/steam/callback', methods=['GET'])
+def steam_connection_callback():
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5174').rstrip('/')
+    session_user_id = session.get('steam_link_user_id')
+    session_nonce = session.get('steam_link_nonce')
+    returned_nonce = request.args.get('link_nonce')
+
+    if not session_user_id or not session_nonce or session_nonce != returned_nonce:
+        return redirect(f"{frontend_url}/dashboard?connection_error=steam_state_invalid")
+
+    verification_payload = {key: value for key, value in request.args.items() if key.startswith('openid.')}
+    verification_payload['openid.mode'] = 'check_authentication'
+
+    try:
+        verification_response = requests.post(
+            'https://steamcommunity.com/openid/login',
+            data=verification_payload,
+            timeout=8
+        )
+        verification_response.raise_for_status()
+    except requests.RequestException:
+        return redirect(f"{frontend_url}/dashboard?connection_error=steam_verify_failed")
+
+    if 'is_valid:true' not in verification_response.text:
+        return redirect(f"{frontend_url}/dashboard?connection_error=steam_invalid")
+
+    claimed_id = request.args.get('openid.claimed_id', '')
+    steam_id_match = re.search(r'/id/(\d+)$', claimed_id) or re.search(r'/profiles/(\d+)$', claimed_id)
+    if not steam_id_match:
+        steam_id_match = re.search(r'/openid/id/(\d+)$', claimed_id)
+    if not steam_id_match:
+        steam_id_match = re.search(r'(\d{17})', claimed_id)
+
+    if not steam_id_match:
+        return redirect(f"{frontend_url}/dashboard?connection_error=steam_id_missing")
+
+    steam_id = steam_id_match.group(1)
+    user = User.query.get(int(session_user_id))
+    if not user:
+        return redirect(f"{frontend_url}/dashboard?connection_error=user_missing")
+
+    existing_owner = ConnectedAccount.query.filter_by(
+        provider='steam',
+        provider_account_id=steam_id
+    ).first()
+    if existing_owner and existing_owner.user_id != user.id:
+        return redirect(f"{frontend_url}/dashboard?connection_error=steam_already_linked")
+
+    try:
+        steam_profile = fetch_steam_profile(steam_id)
+    except requests.RequestException:
+        steam_profile = {
+            "display_name": f"Steam {steam_id[-4:]}",
+            "avatar_url": None,
+            "profile_url": f"https://steamcommunity.com/profiles/{steam_id}",
+        }
+
+    account = ConnectedAccount.query.filter_by(user_id=user.id, provider='steam').first()
+    if not account:
+        account = ConnectedAccount(
+            user_id=user.id,
+            provider='steam',
+            provider_account_id=steam_id,
+        )
+        db.session.add(account)
+
+    account.provider_account_id = steam_id
+    account.display_name = steam_profile.get('display_name')
+    account.avatar_url = steam_profile.get('avatar_url')
+    account.profile_url = steam_profile.get('profile_url')
+    account.updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+
+    session.pop('steam_link_user_id', None)
+    session.pop('steam_link_nonce', None)
+    return redirect(f"{frontend_url}/dashboard?linked=steam")
+
+
+@app.route('/api/dashboard/gaming-summary', methods=['GET'])
+@jwt_required()
+def get_dashboard_gaming_summary():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    steam_account = ConnectedAccount.query.filter_by(user_id=user.id, provider='steam').first()
+    if not steam_account:
+        return jsonify({
+            "connected": False,
+            "configured": bool(os.getenv('STEAM_WEB_API_KEY')),
+            "provider": "steam",
+            "message": "Steam er ikke tilkoblet.",
+            "current_game": None,
+            "recent_games": [],
+            "all_games": [],
+            "totals": {
+                "total_hours": 0,
+                "owned_games": 0,
+                "recent_games": 0,
+            }
+        }), 200
+
+    if not os.getenv('STEAM_WEB_API_KEY'):
+        return jsonify({
+            "connected": True,
+            "configured": False,
+            "provider": "steam",
+            "message": "Steam er koblet til, men STEAM_WEB_API_KEY mangler i backend-env.",
+            "current_game": None,
+            "recent_games": [],
+            "all_games": [],
+            "totals": {
+                "total_hours": 0,
+                "owned_games": 0,
+                "recent_games": 0,
+            }
+        }), 200
+
+    steam_id = steam_account.provider_account_id
+
+    try:
+        player_summary = steam_api_get(
+            'ISteamUser',
+            'GetPlayerSummaries',
+            'v0002',
+            {'steamids': steam_id}
+        )
+        recent_games_response = steam_api_get(
+            'IPlayerService',
+            'GetRecentlyPlayedGames',
+            'v0001',
+            {'steamid': steam_id, 'count': 6}
+        )
+        owned_games_response = steam_api_get(
+            'IPlayerService',
+            'GetOwnedGames',
+            'v0001',
+            {'steamid': steam_id, 'include_appinfo': 1, 'include_played_free_games': 1}
+        )
+    except requests.RequestException as exc:
+        return jsonify({
+            "connected": True,
+            "configured": True,
+            "provider": "steam",
+            "message": f"Kunne ikke hente Steam-data akkurat nå: {exc}",
+            "current_game": None,
+            "recent_games": [],
+            "all_games": [],
+            "totals": {
+                "total_hours": 0,
+                "owned_games": 0,
+                "recent_games": 0,
+            }
+        }), 502
+
+    player = (player_summary or {}).get('response', {}).get('players', [{}])[0]
+    recent_games = (recent_games_response or {}).get('response', {}).get('games', []) or []
+    owned_games = (owned_games_response or {}).get('response', {}).get('games', []) or []
+
+    def minutes_to_hours(minutes):
+        hours = round((minutes or 0) / 60, 2)
+        if hours.is_integer():
+            hours = int(hours)
+        return hours
+
+    def build_game_payload(game):
+        app_id = game.get('appid')
+        name = game.get('name') or f"App {app_id}"
+        logo_hash = game.get('img_logo_url')
+        return {
+            "id": app_id,
+            "title": name,
+            "code": ''.join(part[0] for part in name.split()[:3]).upper()[:4] or 'GM',
+            "platform": "Steam",
+            "platform_class": "gp-s",
+            "left_stat": f"{minutes_to_hours(game.get('playtime_forever', 0))}t totalt",
+            "right_stat": f"{minutes_to_hours(game.get('playtime_2weeks', 0))}t siste 2 uker",
+            "playtime_forever_minutes": game.get('playtime_forever', 0),
+            "playtime_2weeks_minutes": game.get('playtime_2weeks', 0),
+            "app_id": app_id,
+            "image_url": f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/header.jpg" if app_id else None,
+            "logo_url": (
+                f"https://media.steampowered.com/steamcommunity/public/images/apps/{app_id}/{logo_hash}.jpg"
+                if app_id and logo_hash else None
+            ),
+        }
+
+    recent_payload = [build_game_payload(game) for game in recent_games[:3]]
+    all_games_payload = [
+        build_game_payload(game)
+        for game in sorted(owned_games, key=lambda item: item.get('playtime_forever', 0), reverse=True)[:6]
+    ]
+
+    current_game_name = player.get('gameextrainfo') or (recent_payload[0]['title'] if recent_payload else None)
+    current_game = None
+    if current_game_name:
+        matched_recent = next((game for game in recent_payload if game['title'] == current_game_name), None)
+        current_game = {
+            "title": current_game_name,
+            "subtitle": matched_recent['right_stat'] if matched_recent else (
+                f"{minutes_to_hours(recent_games[0].get('playtime_2weeks', 0))}t siste 2 uker" if recent_games else 'Steam'
+            ),
+            "provider": "Steam",
+        }
+
+    total_minutes = sum((game.get('playtime_forever', 0) or 0) for game in owned_games)
+    return jsonify({
+        "connected": True,
+        "configured": True,
+        "provider": "steam",
+        "message": None,
+        "current_game": current_game,
+        "recent_games": recent_payload,
+        "all_games": all_games_payload or recent_payload,
+        "totals": {
+            "total_hours": minutes_to_hours(total_minutes),
+            "owned_games": len(owned_games),
+            "recent_games": len(recent_games),
         }
     }), 200
 
@@ -1075,6 +1566,7 @@ def login():
         "user": {
             "id": user.id,
             "email": user.email,
+            "discord_id": user.discord_id,
             "username": user.username,
             "bio": user.bio,
             "avatar": user.avatar,
@@ -3534,7 +4026,7 @@ def get_user_achievements():
     return jsonify(result)
 
 
-@app.route('/api/achievements/<int:id>', methods=['DELETE'])
+@app.route('/api/achievements/<string:id>', methods=['DELETE'])
 @jwt_required()
 def delete_achievement(id):
     user_id = get_jwt_identity()
@@ -3591,32 +4083,48 @@ def get_user_achievements_unlocked():
 
 # --- Optional: All achievements, not user-specific ---
 @app.route('/api/all-achievements', methods=['GET'])
-
 def get_all_achievements():
     all_achievements = Achievement.query.all()
-    result = [{
-        "id": a.id,
-        "title": a.name,
-        "icon": a.icon,
-        "description": a.description
-    } for a in all_achievements]
+    result = []
+    for a in all_achievements:
+        unlocked_count = UserAchievement.query.filter_by(achievement_id=a.id).count()
+        result.append({
+            "id": a.id,
+            "title": a.name,
+            "icon": a.icon,
+            "description": a.description,
+            "rarity": a.rarity,
+            "glow_color": a.glow_color,
+            "condition_type": a.condition_type,
+            "condition_value": a.condition_value,
+            "unlocked_count": unlocked_count,
+        })
     return jsonify(result), 200
 
 @app.route('/api/achievements', methods=['POST'])
 @jwt_required()
 def create_achievement():
+    import uuid, re as _re
     data = request.get_json()
-    # Validate the required fields
     if not data.get('title') or not data.get('description'):
         return jsonify({'msg': 'Missing required fields'}), 400
 
+    # Auto-generate slug ID from title, fall back to UUID on collision
+    base_id = _re.sub(r'[^a-z0-9]+', '-', data['title'].lower()).strip('-') or str(uuid.uuid4())
+    final_id = base_id
+    counter = 1
+    while Achievement.query.get(final_id):
+        final_id = f"{base_id}-{counter}"
+        counter += 1
+
     new_ach = Achievement(
+        id=final_id,
         name=data.get('title'),
         description=data.get('description'),
         icon=data.get('icon'),
-        condition_type=data.get('condition_type'),
+        condition_type=data.get('condition_type') or None,
         condition_value=data.get('condition_value'),
-        rarity=data.get('rarity'),
+        rarity=data.get('rarity', 'common'),
         glow_color=data.get('glow_color')
     )
     db.session.add(new_ach)
@@ -3624,7 +4132,33 @@ def create_achievement():
     return jsonify({'msg': 'Achievement created', 'id': new_ach.id}), 201
 
 
-@app.route('/api/achievements/<int:ach_id>', methods=['PUT'])
+@app.route('/api/admin/give-achievement', methods=['POST'])
+@jwt_required()
+def admin_give_achievement():
+    current_user_id = get_jwt_identity()
+    admin = User.query.get(int(current_user_id))
+    if not admin or not any(r.name.lower() in ['admin', 'developer'] for r in admin.roles):
+        return jsonify({'msg': 'Unauthorized'}), 403
+    data = request.get_json()
+    user_id = data.get('user_id')
+    achievement_id = data.get('achievement_id')
+    if not user_id or not achievement_id:
+        return jsonify({'msg': 'Missing fields'}), 400
+    target = User.query.get(int(user_id))
+    ach = Achievement.query.get(achievement_id)
+    if not target or not ach:
+        return jsonify({'msg': 'User or achievement not found'}), 404
+    existing = UserAchievement.query.filter_by(user_id=user_id, achievement_id=achievement_id).first()
+    if existing:
+        return jsonify({'msg': 'Already unlocked'}), 409
+    ua = UserAchievement(user_id=user_id, achievement_id=achievement_id,
+                         unlocked_at=datetime.now(timezone.utc), unlocked=True)
+    db.session.add(ua)
+    db.session.commit()
+    return jsonify({'msg': 'Achievement given'}), 201
+
+
+@app.route('/api/achievements/<string:ach_id>', methods=['PUT'])
 @jwt_required()
 def update_achievement(ach_id):
     data = request.get_json()
@@ -3739,6 +4273,130 @@ def get_any_user_achievements(user_id):
         "unlocked_at": ua.unlocked_at.isoformat() if ua.unlocked_at else None,
     } for ua in unlocked]
     return jsonify(result), 200
+
+
+# -----------------------------------------------
+# BEDRIFTSMELDINGER ROUTES
+# -----------------------------------------------
+
+def _melding_dict(m):
+    author = None
+    if m.user:
+        author = {
+            'id': m.user.id,
+            'username': m.user.username,
+            'avatar': m.user.avatar if hasattr(m.user, 'avatar') else None,
+            'roles': [r.name for r in m.user.roles] if m.user.roles else [],
+        }
+    return {
+        'id': m.id,
+        'ref': m.ref,
+        'title': m.title,
+        'content': m.content,
+        'category': m.category,
+        'tag': m.tag,
+        'pinned': m.pinned,
+        'notify_users': m.notify_users,
+        'created_at': m.created_at.isoformat(),
+        'author': author,
+    }
+
+
+@app.route('/api/bedriftsmeldinger', methods=['GET'])
+@jwt_required(optional=True)
+def get_bedriftsmeldinger():
+    items = Bedriftsmelding.query.order_by(Bedriftsmelding.pinned.desc(), Bedriftsmelding.created_at.desc()).all()
+    return jsonify([_melding_dict(m) for m in items])
+
+
+@app.route('/api/bedriftsmeldinger/<int:melding_id>', methods=['GET'])
+@jwt_required(optional=True)
+def get_single_bedriftsmelding(melding_id):
+    m = Bedriftsmelding.query.get_or_404(melding_id)
+    others = Bedriftsmelding.query.filter(Bedriftsmelding.id != melding_id)\
+        .order_by(Bedriftsmelding.pinned.desc(), Bedriftsmelding.created_at.desc())\
+        .limit(3).all()
+    return jsonify({
+        'melding': _melding_dict(m),
+        'others': [_melding_dict(o) for o in others],
+    })
+
+
+@app.route('/api/bedriftsmeldinger', methods=['POST'])
+@jwt_required()
+def create_bedriftsmelding():
+    current_user_id = int(get_jwt_identity())
+    user = User.query.get(current_user_id)
+    if not user or not any(r.name.lower() in ['admin', 'developer'] for r in user.roles):
+        return jsonify({'message': 'Unauthorized'}), 403
+
+    data = request.get_json()
+
+    # Auto-generate ref
+    count = Bedriftsmelding.query.count()
+    ref = f"HMN-MSG-{count + 1:03d}"
+    # Ensure uniqueness
+    while Bedriftsmelding.query.filter_by(ref=ref).first():
+        count += 1
+        ref = f"HMN-MSG-{count + 1:03d}"
+
+    # If pinning, unpin all others
+    if data.get('pinned'):
+        Bedriftsmelding.query.filter_by(pinned=True).update({'pinned': False})
+
+    m = Bedriftsmelding(
+        ref=ref,
+        title=data['title'],
+        content=data['content'],
+        category=data.get('category', 'oppdatering'),
+        tag=data.get('tag'),
+        pinned=data.get('pinned', False),
+        notify_users=data.get('notify_users', False),
+        user_id=current_user_id,
+    )
+    db.session.add(m)
+    db.session.commit()
+    return jsonify(_melding_dict(m)), 201
+
+
+@app.route('/api/bedriftsmeldinger/<int:melding_id>', methods=['PUT'])
+@jwt_required()
+def update_bedriftsmelding(melding_id):
+    current_user_id = int(get_jwt_identity())
+    user = User.query.get(current_user_id)
+    if not user or not any(r.name.lower() in ['admin', 'developer'] for r in user.roles):
+        return jsonify({'message': 'Unauthorized'}), 403
+
+    m = Bedriftsmelding.query.get_or_404(melding_id)
+    data = request.get_json()
+
+    # If pinning this one, unpin all others first
+    if data.get('pinned') and not m.pinned:
+        Bedriftsmelding.query.filter_by(pinned=True).update({'pinned': False})
+
+    m.title = data.get('title', m.title)
+    m.content = data.get('content', m.content)
+    m.category = data.get('category', m.category)
+    m.tag = data.get('tag', m.tag)
+    m.pinned = data.get('pinned', m.pinned)
+    m.notify_users = data.get('notify_users', m.notify_users)
+
+    db.session.commit()
+    return jsonify(_melding_dict(m))
+
+
+@app.route('/api/bedriftsmeldinger/<int:melding_id>', methods=['DELETE'])
+@jwt_required()
+def delete_bedriftsmelding(melding_id):
+    current_user_id = int(get_jwt_identity())
+    user = User.query.get(current_user_id)
+    if not user or not any(r.name.lower() in ['admin', 'developer'] for r in user.roles):
+        return jsonify({'message': 'Unauthorized'}), 403
+
+    m = Bedriftsmelding.query.get_or_404(melding_id)
+    db.session.delete(m)
+    db.session.commit()
+    return jsonify({'message': 'Deleted'}), 200
 
 
 from mini_games.ClickerApi import clicker_api, init_db

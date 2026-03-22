@@ -129,18 +129,30 @@
                 <div class="sh"><span class="sh-t">Tilkoblede kontoer</span><span class="sh-a">Administrer</span></div>
                 <div class="sb">
                   <div class="conn-list">
-                    <div v-for="connection in connections" :key="connection.id" class="conn">
+                    <div v-for="connection in resolvedConnections" :key="connection.provider" class="conn">
                       <div class="conn-icon" :class="connection.iconClass">{{ connection.abbr }}</div>
                       <div class="conn-info">
                         <div class="conn-name">{{ connection.name }}</div>
                         <div class="conn-user">{{ connection.userText }}</div>
                       </div>
                       <div class="conn-dot" :class="connection.connected ? 'cd-on' : 'cd-off'"></div>
-                      <button class="conn-btn" :class="connection.connected ? 'cb-on' : 'cb-off'">
-                        {{ connection.connected ? 'Koble fra' : 'Koble til' }}
+                      <button
+                        class="conn-btn"
+                        :class="connection.connected ? 'cb-on' : 'cb-off'"
+                        :disabled="!connection.actionable || connectionActionProvider === connection.provider || connectionsLoading"
+                        @click="handleConnectionAction(connection)"
+                      >
+                        {{
+                          connectionActionProvider === connection.provider
+                            ? 'Jobber...'
+                            : connection.connected
+                              ? (connection.actionable ? 'Koble fra' : 'Tilkoblet')
+                              : 'Koble til'
+                        }}
                       </button>
                     </div>
                   </div>
+                  <div v-if="connectionStatus" class="conn-status" :class="connectionStatusType">{{ connectionStatus }}</div>
                 </div>
               </div>
             </div>
@@ -152,12 +164,17 @@
                   <span class="np-live">Spiller nå</span>
                   <span class="np-game">Satisfactory · {{ activityLabel }}</span>
                   <span class="np-via">Steam</span>
+                  <div v-if="gamingSummary?.current_game" class="np-overlay">
+                    <span class="np-game">{{ nowPlayingTitle }}</span>
+                    <span class="np-via">{{ nowPlayingProvider }}</span>
+                  </div>
                 </div>
                 <div class="mc-head"><span class="mc-title">Siste spilte</span><span class="mc-meta">siste 2 uker</span></div>
                 <div class="game-grid">
                   <div v-for="game in recentGames" :key="game.id" class="gc">
-                    <div class="gc-art" :class="game.artClass">
-                      {{ game.code }}
+                    <div class="gc-art" :class="game.artClass" :style="game.artStyle">
+                      <img v-if="game.imageUrl" :src="game.imageUrl" :alt="game.title" class="gc-art-img" />
+                      <span v-else>{{ game.code }}</span>
                       <div class="gc-pip" :class="game.platformClass">{{ game.platform }}</div>
                     </div>
                     <div class="gc-body">
@@ -172,7 +189,10 @@
                 <div class="mc-head"><span class="mc-title">Siste achievements</span><span class="mc-meta">nylig låst opp</span></div>
                 <div class="ach-grid">
                   <div v-for="achievement in recentAchievements" :key="achievement.id" class="ai">
-                    <div class="ai-icon" :class="achievement.iconClass">{{ achievement.icon }}</div>
+                    <div class="ai-icon" :class="achievement.iconClass">
+                      <img v-if="achievement.isImg" :src="achievement.icon" class="ai-icon-img" />
+                      <span v-else>{{ achievement.icon }}</span>
+                    </div>
                     <div class="ai-info">
                       <div class="ai-name">{{ achievement.title }}</div>
                       <div class="ai-game">{{ achievement.game }}</div>
@@ -214,7 +234,7 @@
               <div class="scard">
                 <div class="sh"><span class="sh-t">Plattformer</span></div>
                 <div class="sb platform-list">
-                  <div v-for="platform in gamingPlatforms" :key="platform.id" class="platform-item" :class="platform.panelClass">
+                  <div v-for="platform in dynamicGamingPlatforms" :key="platform.id" class="platform-item" :class="platform.panelClass">
                     <div class="conn-icon" :class="platform.iconClass">{{ platform.abbr }}</div>
                     <div>
                       <div class="platform-name">{{ platform.name }}</div>
@@ -227,10 +247,10 @@
               <div class="scard">
                 <div class="sh"><span class="sh-t">Totalt</span></div>
                 <div class="stat-rows">
-                  <div class="sr"><span class="sr-label">Total spilltid</span><span class="sr-val c-cyan">1,240t</span></div>
-                  <div class="sr"><span class="sr-label">Gamerscore</span><span class="sr-val c-gold">48,350</span></div>
-                  <div class="sr"><span class="sr-label">Spill eiet</span><span class="sr-val c-green">67</span></div>
-                  <div class="sr"><span class="sr-label">Achievements</span><span class="sr-val c-red">{{ achievementCount }}</span></div>
+                  <div class="sr"><span class="sr-label">Total spilltid</span><span class="sr-val c-cyan">{{ gamingTotalHours }}</span></div>
+                  <div class="sr"><span class="sr-label">Gamerscore</span><span class="sr-val c-gold">—</span></div>
+                  <div class="sr"><span class="sr-label">Spill eiet</span><span class="sr-val c-green">{{ gamingOwnedGames }}</span></div>
+                  <div class="sr"><span class="sr-label">Achievements</span><span class="sr-val c-red">—</span></div>
                 </div>
               </div>
             </div>
@@ -242,12 +262,17 @@
                   <span class="np-live">Spiller nå</span>
                   <span class="np-game">Satisfactory · 2t 14m</span>
                   <span class="np-via">Steam</span>
+                  <div v-if="gamingSummary?.current_game" class="np-overlay">
+                    <span class="np-game">{{ nowPlayingTitle }}</span>
+                    <span class="np-via">{{ nowPlayingProvider }}</span>
+                  </div>
                 </div>
-                <div class="mc-head"><span class="mc-title">Alle spill</span><span class="mc-meta">67 totalt</span></div>
+                <div class="mc-head"><span class="mc-title">Alle spill</span><span class="mc-meta">{{ gamingOwnedGames }} totalt</span></div>
                 <div class="game-grid all-games-grid">
                   <div v-for="game in allGames" :key="game.id" class="gc">
-                    <div class="gc-art" :class="game.artClass">
-                      {{ game.code }}
+                    <div class="gc-art" :class="game.artClass" :style="game.artStyle">
+                      <img v-if="game.imageUrl" :src="game.imageUrl" :alt="game.title" class="gc-art-img" />
+                      <span v-else>{{ game.code }}</span>
                       <div class="gc-pip" :class="game.platformClass">{{ game.platform }}</div>
                     </div>
                     <div class="gc-body">
@@ -289,9 +314,10 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import axios from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
+import { disconnectConnection, fetchConnections, fetchSteamConnectUrl } from '@/services/connectionService'
 import RankCard from '@/components/RankCard.vue'
 import AchievementPanel from '@/components/AchievementPanel.vue'
 
@@ -344,6 +370,7 @@ const fallbackActivity = [
 ]
 
 const auth = useAuthStore()
+const route = useRoute()
 const router = useRouter()
 
 const activeTab = ref('oversikt')
@@ -357,6 +384,12 @@ const labActivity = ref(0)
 const krenkeLevel = ref(0)
 const achievements = ref([])
 const recentActivityApi = ref([])
+const connectionsData = ref([])
+const connectionsLoading = ref(false)
+const connectionActionProvider = ref('')
+const connectionStatus = ref('')
+const connectionStatusType = ref('status-muted')
+const gamingSummary = ref(null)
 
 const user = computed(() => auth.user)
 const displayName = computed(() => user.value?.username || user.value?.email || 'Bruker')
@@ -410,22 +443,27 @@ const connections = computed(() => [
   { id: 4, name: 'Discord', abbr: 'D', iconClass: 'ci-d', connected: true, userText: `${displayName.value}#0001` },
 ])
 
-const recentGames = computed(() => fallbackGames)
-const allGames = computed(() => fallbackAllGames)
+const recentGames = computed(() => recentGamesDynamic.value)
+const allGames = computed(() => allGamesDynamic.value)
 const recentAchievements = computed(() => {
   if (!achievements.value.length) return fallbackAchievements
   return achievements.value
     .filter(item => item.achieved !== false)
     .slice(0, 4)
-    .map((item, index) => ({
-      id: item.id,
-      title: item.title,
-      game: item.category || 'HMN Portalen',
-      icon: ['🏆', '🎯', '⚔️', '🔥'][index % 4],
-      iconClass: ['aig', 'aic', 'aigg', 'air'][index % 4],
-      platform: item.category === 'clicker' ? 'Clicker' : 'HMN',
-      platformClass: item.category === 'clicker' ? 'apx' : 'aph',
-    }))
+    .map((item, index) => {
+      const rawIcon = item.icon || item.svg || ''
+      const isImg = typeof rawIcon === 'string' && (rawIcon.startsWith('http') || rawIcon.startsWith('data:'))
+      return {
+        id: item.id,
+        title: item.title,
+        game: item.category || 'HMN Portalen',
+        icon: rawIcon || ['🏆', '🎯', '⚔️', '🔥'][index % 4],
+        isImg,
+        iconClass: ['aig', 'aic', 'aigg', 'air'][index % 4],
+        platform: item.category === 'clicker' ? 'Clicker' : 'HMN',
+        platformClass: item.category === 'clicker' ? 'apx' : 'aph',
+      }
+    })
 })
 
 const recentActivity = computed(() => recentActivityApi.value.length ? recentActivityApi.value.slice(0, 5) : fallbackActivity)
@@ -435,6 +473,153 @@ const gamingPlatforms = computed(() => [
   { id: 2, name: 'Xbox', abbr: 'X', meta: '48,350 Gamerscore', iconClass: 'ci-x', panelClass: 'platform-xbox' },
   { id: 3, name: 'Battle.net', abbr: 'B', meta: 'Ikke tilkoblet', iconClass: 'ci-b', panelClass: 'platform-bnet' },
 ])
+
+const connectionMeta = {
+  steam: { name: 'Steam', abbr: 'S', iconClass: 'ci-s', actionable: true },
+  xbox: { name: 'Xbox', abbr: 'X', iconClass: 'ci-x', actionable: false },
+  battlenet: { name: 'Battle.net', abbr: 'B', iconClass: 'ci-b', actionable: false },
+  discord: { name: 'Discord', abbr: 'D', iconClass: 'ci-d', actionable: false },
+}
+
+const resolvedConnections = computed(() => {
+  if (!connectionsData.value.length) {
+    return [
+      { provider: 'steam', connected: false, subtitle: 'Ikke tilkoblet', ...connectionMeta.steam, userText: 'Ikke tilkoblet', actionable: true },
+      { provider: 'xbox', connected: false, subtitle: 'Kommer senere', ...connectionMeta.xbox, userText: 'Kommer senere', actionable: false },
+      { provider: 'battlenet', connected: false, subtitle: 'Kommer senere', ...connectionMeta.battlenet, userText: 'Kommer senere', actionable: false },
+      {
+        provider: 'discord',
+        connected: Boolean(user.value?.discord_id),
+        subtitle: user.value?.discord_id ? `Discord · ${String(user.value.discord_id).slice(-4)}` : 'Primær innlogging mangler',
+        ...connectionMeta.discord,
+        userText: user.value?.discord_id
+          ? `${displayName.value} · Discord · ${String(user.value.discord_id).slice(-4)}`
+          : 'Primær innlogging mangler',
+        actionable: false
+      },
+    ]
+  }
+
+  return connectionsData.value.map(connection => {
+    const meta = connectionMeta[connection.provider] || { name: connection.provider, abbr: '?', iconClass: 'ci-d', actionable: false }
+    return {
+      ...connection,
+      ...meta,
+      userText: connection.connected
+        ? [connection.displayName, connection.subtitle].filter(Boolean).join(' · ')
+        : (connection.subtitle || 'Ikke tilkoblet'),
+      actionable: meta.actionable && (connection.connected || connection.provider === 'steam'),
+    }
+  })
+})
+
+const dynamicGamingPlatforms = computed(() => [
+  {
+    id: 1,
+    name: 'Steam',
+    abbr: 'S',
+    meta: gamingSummary.value?.connected
+      ? `${gamingTotalHours.value} total spilltid`
+      : (resolvedConnections.value.find(item => item.provider === 'steam')?.userText || 'Ikke tilkoblet'),
+    iconClass: 'ci-s',
+    panelClass: 'platform-steam'
+  },
+  {
+    id: 2,
+    name: 'Xbox',
+    abbr: 'X',
+    meta: 'Kommer senere',
+    iconClass: 'ci-x',
+    panelClass: 'platform-xbox'
+  },
+  {
+    id: 3,
+    name: 'Battle.net',
+    abbr: 'B',
+    meta: 'Kommer senere',
+    iconClass: 'ci-b',
+    panelClass: 'platform-bnet'
+  },
+])
+
+function buildGameVisualSeed(game) {
+  const seed = Number(game?.id || 0) % 6
+  const palettes = [
+    'linear-gradient(135deg,#0a1628,#1a3a6a)',
+    'linear-gradient(135deg,#280a0a,#6a1a1a)',
+    'linear-gradient(135deg,#0a1a0a,#1a5a1a)',
+    'linear-gradient(135deg,#241019,#6b2549)',
+    'linear-gradient(135deg,#12122a,#323282)',
+    'linear-gradient(135deg,#1b1809,#6c4b13)',
+  ]
+  return palettes[seed]
+}
+
+function normalizeSteamGame(game) {
+  return {
+    ...game,
+    leftStat: game.leftStat || game.left_stat,
+    rightStat: game.rightStat || game.right_stat,
+    platformClass: game.platformClass || game.platform_class || 'gp-s',
+    imageUrl: game.imageUrl || game.image_url || game.logo_url || null,
+    artStyle: { background: buildGameVisualSeed(game) },
+    artClass: '',
+  }
+}
+
+const recentGamesDynamic = computed(() => {
+  const games = Array.isArray(gamingSummary.value?.recent_games) ? gamingSummary.value.recent_games : []
+  if (gamingSummary.value) {
+    if (games.length) return games.map(normalizeSteamGame)
+    if (gamingSummary.value.message) {
+      return [{
+        id: 'steam-message',
+        code: 'ST',
+        title: gamingSummary.value.message,
+        leftStat: gamingSummary.value.connected ? 'Steam koblet til' : 'Ikke koblet til',
+        rightStat: gamingSummary.value.configured ? 'Ingen nylige spill' : 'Mangler API-nøkkel',
+        platform: 'Steam',
+        platformClass: 'gp-s',
+        artClass: 'ga1',
+      }]
+    }
+    return []
+  }
+  return fallbackGames
+})
+
+const allGamesDynamic = computed(() => {
+  const games = Array.isArray(gamingSummary.value?.all_games) ? gamingSummary.value.all_games : []
+  if (gamingSummary.value) {
+    if (games.length) return games.map(normalizeSteamGame)
+    if (gamingSummary.value.message) {
+      return [{
+        id: 'steam-message-all',
+        code: 'ST',
+        title: gamingSummary.value.message,
+        leftStat: gamingSummary.value.connected ? 'Steam koblet til' : 'Ikke koblet til',
+        rightStat: gamingSummary.value.configured ? 'Ingen data enda' : 'Mangler API-nøkkel',
+        platform: 'Steam',
+        platformClass: 'gp-s',
+        artClass: 'ga1',
+      }]
+    }
+    return []
+  }
+  return fallbackAllGames
+})
+
+const nowPlayingTitle = computed(() => {
+  if (gamingSummary.value?.current_game?.title) {
+    return `${gamingSummary.value.current_game.title} · ${gamingSummary.value.current_game.subtitle}`
+  }
+  return `Ingen aktiv Steam-data · ${activityLabel.value}`
+})
+
+const nowPlayingProvider = computed(() => gamingSummary.value?.current_game?.provider || 'Steam')
+const gamingTotalHours = computed(() => `${gamingSummary.value?.totals?.total_hours ?? 0}t`)
+const gamingOwnedGames = computed(() => gamingSummary.value?.totals?.owned_games ?? 0)
+const gamingSummaryMessage = computed(() => gamingSummary.value?.message || '')
 
 let activityInterval = null
 let secondsActive = 0
@@ -574,6 +759,75 @@ async function fetchRecentActivity() {
   }
 }
 
+async function fetchConnectionData() {
+  try {
+    connectionsLoading.value = true
+    const { data } = await fetchConnections()
+    connectionsData.value = Array.isArray(data.connections) ? data.connections : []
+  } catch (error) {
+    console.error('Error fetching connections:', error)
+    connectionsData.value = []
+  } finally {
+    connectionsLoading.value = false
+  }
+}
+
+async function fetchGamingSummary() {
+  try {
+    const { data } = await axios.get('/dashboard/gaming-summary')
+    gamingSummary.value = data
+  } catch (error) {
+    console.error('Error fetching gaming summary:', error)
+    gamingSummary.value = {
+      connected: false,
+      configured: false,
+      message: 'Kunne ikke hente Steam-data akkurat nå.',
+      current_game: null,
+      recent_games: [],
+      all_games: [],
+      totals: { total_hours: 0, owned_games: 0, recent_games: 0 },
+    }
+  }
+}
+
+async function handleConnectionAction(connection) {
+  if (!connection?.actionable || connectionActionProvider.value) return
+
+  if (connection.provider !== 'steam') {
+    connectionStatusType.value = 'status-muted'
+    connectionStatus.value = `${connection.name} kommer etter Steam-integrasjonen.`
+    return
+  }
+
+  try {
+    connectionActionProvider.value = connection.provider
+
+    if (connection.connected) {
+      await disconnectConnection(connection.provider)
+      connectionStatusType.value = 'status-success'
+      connectionStatus.value = 'Steam ble koblet fra.'
+      await fetchConnectionData()
+      await fetchGamingSummary()
+      return
+    }
+
+    const { data } = await fetchSteamConnectUrl()
+    if (data?.redirect_url) {
+      window.location.href = data.redirect_url
+      return
+    }
+
+    connectionStatusType.value = 'status-error'
+    connectionStatus.value = 'Kunne ikke starte Steam-koblingen.'
+  } catch (error) {
+    console.error('Connection action failed:', error)
+    connectionStatusType.value = 'status-error'
+    connectionStatus.value = error.response?.data?.error || 'Noe gikk galt under kontokoblingen.'
+  } finally {
+    connectionActionProvider.value = ''
+  }
+}
+
 async function sendActivityUpdate(seconds) {
   if (!seconds) return
   try {
@@ -622,12 +876,27 @@ watch(user, currentUser => {
 
 onMounted(async () => {
   if (!auth.user && typeof auth.initialize === 'function') auth.initialize()
+  let shouldClearConnectionQuery = false
+  if (route.query.linked === 'steam') {
+    connectionStatusType.value = 'status-success'
+    connectionStatus.value = 'Steam-konto koblet til.'
+    shouldClearConnectionQuery = true
+  } else if (route.query.connection_error) {
+    connectionStatusType.value = 'status-error'
+    connectionStatus.value = 'Steam-koblingen feilet. Prøv igjen.'
+    shouldClearConnectionQuery = true
+  }
+  if (shouldClearConnectionQuery) {
+    router.replace({ path: route.path, query: {} })
+  }
   await Promise.all([
     auth.fetchFittePoints(),
     fetchWeeklyActivity(),
     fetchKrenkeLevel(),
     fetchAchievements(),
     fetchRecentActivity(),
+    fetchConnectionData(),
+    fetchGamingSummary(),
   ])
   startActivityTimer()
   document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -1228,6 +1497,11 @@ onBeforeUnmount(() => {
   transition: all 0.15s;
 }
 
+.conn-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .cb-on {
   background: rgba(255, 255, 255, 0.04);
   color: var(--muted);
@@ -1238,6 +1512,32 @@ onBeforeUnmount(() => {
   background: rgba(0, 184, 208, 0.1);
   color: var(--cyan);
   border: 1px solid rgba(0, 184, 208, 0.2);
+}
+
+.conn-status {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-family: var(--font-body);
+  border: 1px solid var(--border2);
+}
+
+.status-success {
+  color: #7fe3a3;
+  background: rgba(40, 184, 96, 0.08);
+  border-color: rgba(40, 184, 96, 0.2);
+}
+
+.status-error {
+  color: #ff7387;
+  background: rgba(200, 16, 46, 0.08);
+  border-color: rgba(200, 16, 46, 0.2);
+}
+
+.status-muted {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .mc {
@@ -1277,6 +1577,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  position: relative;
 }
 
 .np-dot {
@@ -1307,6 +1608,20 @@ onBeforeUnmount(() => {
 .np-via {
   font-size: 11px;
   color: var(--muted);
+  margin-left: auto;
+}
+
+.np-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px 9px 74px;
+  background: rgba(15, 23, 32, 0.96);
+}
+
+.np-overlay .np-via {
   margin-left: auto;
 }
 
@@ -1349,6 +1664,20 @@ onBeforeUnmount(() => {
   color: rgba(255, 255, 255, 0.1);
 }
 
+.gc-art > span {
+  position: relative;
+  z-index: 1;
+}
+
+.gc-art-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(1.05) contrast(1.02);
+}
+
 .ga1 { background: linear-gradient(135deg, #0a1628, #1a3a6a); }
 .ga2 { background: linear-gradient(135deg, #280a0a, #6a1a1a); }
 .ga3 { background: linear-gradient(135deg, #0a1a0a, #1a5a1a); }
@@ -1366,6 +1695,7 @@ onBeforeUnmount(() => {
   font-family: var(--font-display);
   font-weight: 700;
   text-transform: uppercase;
+  z-index: 1;
 }
 
 .gp-s { background: rgba(27, 159, 212, 0.25); color: #4ab8e8; }
@@ -1425,6 +1755,12 @@ onBeforeUnmount(() => {
   justify-content: center;
   font-size: 15px;
   flex-shrink: 0;
+}
+.ai-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
 }
 
 .aig { background: rgba(216, 152, 32, 0.12); border: 1px solid rgba(216, 152, 32, 0.2); }
