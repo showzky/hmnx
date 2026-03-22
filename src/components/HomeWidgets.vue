@@ -17,14 +17,25 @@
           <div class="skel skel-badge"></div>
         </div>
       </template>
+      <template v-else-if="!displayHendelser.length">
+        <div class="ev-empty">
+          <div class="ev-empty-title">Ingen kommende hendelser</div>
+          <div class="ev-empty-sub">Neste oppføring dukker opp her så snart admin publiserer en ekte hendelse.</div>
+        </div>
+      </template>
       <template v-else>
-        <div v-for="ev in displayHendelser" :key="ev.id || ev.title" class="ev">
+        <router-link
+          v-for="ev in displayHendelser"
+          :key="ev.id || ev.title"
+          :to="ev.to"
+          class="ev ev-link"
+        >
           <div>
             <div class="ev-name">{{ ev.title }}</div>
             <div class="ev-date">{{ ev.dateLabel }}</div>
           </div>
           <span :class="['evb', ev.badge.cls]">{{ ev.badge.label }}</span>
-        </div>
+        </router-link>
       </template>
     </div>
 
@@ -103,10 +114,33 @@ defineProps({
   transition: background 0.15s;
   gap: 12px;
 }
+.ev-link {
+  color: inherit;
+  text-decoration: none;
+}
 .ev:hover { background: rgba(255,255,255,0.025); }
 .ev:last-child { border-bottom: none; }
 .ev-name { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; font-family: var(--font-body); }
 .ev-date { font-size: 11px; color: var(--text-muted); font-family: var(--font-ui); }
+.ev-empty {
+  padding: 22px 16px;
+  text-align: left;
+}
+.ev-empty-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--bright);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.ev-empty-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  font-family: var(--font-body);
+}
 .evb {
   font-size: 9px; padding: 4px 10px;
   border-radius: var(--r-xs);

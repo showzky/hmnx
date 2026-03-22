@@ -26,7 +26,7 @@
                 <div class="profile-name-row">
                   <span class="profile-name">{{ user.username || user.email }}</span>
                   <div class="pbadges">
-                    <span v-for="r in user.roles" :key="r.id" class="pbadge" :class="badgeClass(r.name)">{{ r.name }}</span>
+                    <span v-for="r in user.roles" :key="r.id" class="pbadge" :class="r.badge_color ? '' : badgeClass(r.name)" :style="badgeColorStyle(r.badge_color)">{{ r.name }}</span>
                   </div>
                 </div>
                 <div class="profile-sub">
@@ -59,6 +59,7 @@
               v-if="primaryRole"
               :variant="primaryRole.name.toLowerCase()"
               :name="primaryRole.name"
+              :color="primaryRole.badge_color || ''"
             />
             <div class="scard" v-if="user.bio">
               <div class="sch"><span class="sch-t">Om meg</span></div>
@@ -214,6 +215,16 @@ const krenketLabel   = computed(() => {
 
 function badgeClass(name) {
   return BADGE_CLASS[name.toLowerCase()] || 'pb-muted'
+}
+
+// ADDED THIS - dynamic color from database badge_color
+function badgeColorStyle(badgeColor) {
+  if (!badgeColor) return {}
+  return {
+    background: `${badgeColor}1a`,
+    color: badgeColor,
+    border: `1px solid ${badgeColor}38`,
+  }
 }
 
 onMounted(async () => {

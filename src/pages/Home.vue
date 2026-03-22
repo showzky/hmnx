@@ -40,7 +40,14 @@
             <div class="born-emoji">🎮</div>
             <div class="disc-title">TimeCraft Discord</div>
             <div class="disc-sub">Memes, kaos, halvgode idéer og av og til seriøse samtaler. Velkommen skarru være 📣</div>
-            <button class="disc-btn" @click="openDiscord">Bli med i koret av kaos</button>
+            <a
+              class="disc-btn"
+              href="https://discord.gg/z8XkcvtaRs"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Bli med i koret av kaos
+            </a>
           </div>
         </div>
 
@@ -101,9 +108,8 @@ const stats = ref({ pasienter_online: null, kommende_hendelser_count: null, kren
 const featuredMelding  = ref(null);
 const rawMeldinger     = ref([]);
 const rawHendelser     = ref([]);
-const activityFeed     = ref([]);
 
-const loading = ref({ stats: true, featuredMelding: true, meldinger: true, hendelser: true, activity: true });
+const loading = ref({ stats: true, featuredMelding: true, meldinger: true, hendelser: true });
 
 const FALLBACK_FEATURED_MELDING = {
   ref: 'HMN-QUIET-001',
@@ -159,72 +165,57 @@ const displayMeldinger = computed(() =>
     : CURATED_FALLBACK_MELDINGER
 );
 
-// ── Computed: hendelser with hardcoded fallbacks ───────────────────────────
+// ── Computed: real upcoming hendelser ─────────────────────────────────────
 const BADGE_MAP = {
-  required: { cls: 'evb-gold', label: 'Påkrevd oppmøte' },
-  sporadisk: { cls: 'evb-red',  label: 'Sporadisk' },
-  login:    { cls: 'evb-cyan', label: 'Logg inn' },
+  today:   { cls: 'evb-red',  label: 'I dag' },
+  soon:    { cls: 'evb-gold', label: 'Snart' },
+  planned: { cls: 'evb-cyan', label: 'Planlagt' },
 };
-const FALLBACK_HENDELSER = [
-  { title: 'Hendelsesregisteret utilgjengelig', dateLabel: 'REF: HMN-EVT-503 · kontakt overlegen', badge: BADGE_MAP.sporadisk },
-  { title: 'Obligatorisk fremmøteregistrering', dateLabel: 'Dato fastsettes av administrasjonen',  badge: BADGE_MAP.required },
-  { title: 'Logg inn for hendelsesoppdatering', dateLabel: 'Tilgang krever gyldig pasientstatus',   badge: BADGE_MAP.login },
-];
 const displayHendelser = computed(() =>
   rawHendelser.value.length
     ? rawHendelser.value.map(h => ({
         id:        h.id,
         title:     h.title,
-        dateLabel: formatDate(h.date),
-        badge:     BADGE_MAP[h.badge_type] || { cls: 'evb-cyan', label: h.badge_type || 'Info' },
+        to:        `/events/${h.id}`,
+        dateLabel: [formatDate(h.date), h.time?.slice?.(0, 5)].filter(Boolean).join(' · '),
+        badge:     BADGE_MAP[h.badge_type] || BADGE_MAP.planned,
       }))
-    : FALLBACK_HENDELSER
+    : []
 );
 
 // ── Computed: ticker items ────────────────────────────────────────────────
-const HARDCODED_TICKER = [
-  { text: 'Kronisk skyldfraskriving',                                        highlight: true  },
-  { text: ' diagnostisert i populasjonen · § 2.1 bekreftet',               highlight: false },
-  { text: 'Krenkethet ',                                                    highlight: false },
-  { text: '+12%',                                                           highlight: true  },
-  { text: ' etter torsdagsmøtet — behandlingsplan mangler',                highlight: false },
-  { text: 'API-responstid: ',                                               highlight: false },
-  { text: '847ms',                                                          highlight: true  },
-  { text: ' · innenfor klinisk toleransegrense',                           highlight: false },
-  { text: 'Ny banger lastet opp i ',                                        highlight: false },
-  { text: 'Bangerfabrikken',                                                highlight: true  },
-  { text: ' · auditiv behandling anbefalt',                                highlight: false },
-  { text: 'Daglig dose kaffe: ',                                            highlight: false },
-  { text: 'administrert',                                                   highlight: true  },
-  { text: ' · ingen kjente bivirkninger rapportert',                       highlight: false },
-  { text: 'Forum: ',                                                        highlight: false },
-  { text: 'fremdeles nedlagt · § 4.2',                                      highlight: true  },
-  { text: ' · § 4.2 — ingen endring i prognose',                          highlight: false },
-  { text: 'Cookie-klikkavhengighet: ',                                      highlight: false },
-  { text: 'ubehandlet',                                                     highlight: true  },
-  { text: ' · ICD-11 kode F63.8 under vurdering',                         highlight: false },
-  { text: 'Eksistensiell krise detektert — ',                               highlight: false },
-  { text: 'behandles med kebab',                                            highlight: true  },
-  { text: ' og Discord-støttesamtale',                                     highlight: false },
-  { text: 'Systemstatus: ',                                                 highlight: false },
-  { text: 'stabil',                                                         highlight: true  },
-  { text: ' · ukjent aktør holdes under observasjon',                      highlight: false },
-];
 const tickerItems = computed(() => {
-  const apiItems = activityFeed.value
-    .map(a => ({ text: a.message || a.text || a.activity || '', highlight: false }))
-    .filter(i => i.text);
-  return [...apiItems, ...HARDCODED_TICKER];
+  const meldinger = featuredMelding.value && !featuredMelding.value.fallback
+    ? [featuredMelding.value, ...rawMeldinger.value]
+    : rawMeldinger.value;
+
+  return meldinger.flatMap(melding => {
+    const items = [];
+
+    if (melding.ref) {
+      items.push({ text: melding.ref, highlight: true });
+    }
+
+    if (melding.title) {
+      items.push({ text: melding.title, highlight: false });
+    }
+
+    const metaParts = [melding.date ? formatDate(melding.date) : '', melding.meta || '']
+      .map(part => part && String(part).trim())
+      .filter(Boolean);
+
+    if (metaParts.length) {
+      items.push({ text: metaParts.join(' · '), highlight: false });
+    }
+
+    return items;
+  });
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function formatDate(dateStr) {
   if (!dateStr) return '';
   return new Date(dateStr).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
-function openDiscord() {
-  window.open('https://discord.gg/z8XkcvtaRs', '_blank');
 }
 
 // ── API fetchers ──────────────────────────────────────────────────────────
@@ -283,17 +274,10 @@ async function fetchHendelser() {
   try {
     const { data } = await api.get('/hendelser', { params: { upcoming: true, limit: 3 } });
     rawHendelser.value = data || [];
-  } catch { /* use fallbacks */ } finally {
+  } catch {
+    rawHendelser.value = [];
+  } finally {
     loading.value.hendelser = false;
-  }
-}
-
-async function fetchActivity() {
-  try {
-    const { data } = await api.get('/activity', { params: { limit: 30 } });
-    activityFeed.value = data || [];
-  } catch { /* ticker works with hardcoded items */ } finally {
-    loading.value.activity = false;
   }
 }
 
@@ -308,7 +292,7 @@ function initReveal() {
 // ── Mount ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
   await nextTick();
-  await Promise.allSettled([fetchStats(), fetchMeldinger(), fetchHendelser(), fetchActivity()]);
+  await Promise.allSettled([fetchStats(), fetchMeldinger(), fetchHendelser()]);
   initReveal();
 });
 </script>

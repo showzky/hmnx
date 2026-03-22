@@ -1738,7 +1738,7 @@ def get_current_user():
             "bio": user.bio,
             "avatar": user.avatar,
             "banner": user.banner,
-            "roles": [{"id": role.id, "name": role.name} for role in user.roles]
+            "roles": [{"id": role.id, "name": role.name, "badge_color": role.badge_color, "badge_icon": role.badge_icon} for role in user.roles]
         }
     }), 200
 
@@ -3579,6 +3579,45 @@ def create_event():
     return jsonify({"msg": "Event created successfully", "event_id": new_event.id}), 201
 
 
+@app.route('/api/hendelser', methods=['GET'])
+def get_public_upcoming_hendelser():
+    """Public endpoint for homepage upcoming events."""
+    try:
+        today = datetime.utcnow().date()
+        limit = request.args.get('limit', default=3, type=int) or 3
+        upcoming_only = str(request.args.get('upcoming', 'true')).lower() in ('1', 'true', 'yes')
+
+        query = Event.query
+        if upcoming_only:
+            query = query.filter(Event.event_date >= today)
+
+        events = query.order_by(Event.event_date.asc(), Event.event_time.asc()).limit(max(1, min(limit, 6))).all()
+
+        hendelser = []
+        for event in events:
+            badge_type = 'planned'
+            if event.event_date == today:
+                badge_type = 'today'
+            elif (event.event_date - today).days <= 3:
+                badge_type = 'soon'
+
+            hendelser.append({
+                "id": event.id,
+                "title": event.event_name,
+                "date": event.event_date.isoformat() if event.event_date else None,
+                "time": event.event_time.isoformat() if event.event_time else None,
+                "description": event.event_description,
+                "badge_type": badge_type,
+                "template_name": event.template_name,
+            })
+
+        return jsonify(hendelser), 200
+
+    except Exception as e:
+        print(f"Database error fetching public hendelser: {e}")
+        return jsonify({"error": "Failed to fetch hendelser"}), 500
+
+
 # NEW: API endpoint to get upcoming events: /api/events (GET)
 @app.route('/api/events', methods=['GET'])
 @jwt_required()  # Protect this endpoint as well, require login to view events
@@ -3609,7 +3648,6 @@ def get_events():
         return jsonify({"error": "Failed to fetch events"}), 500 # Return error response
     
 @app.route('/api/events/<int:event_id>', methods=['GET'])
-@jwt_required()  # Keep JWT protection, as events are likely private
 def get_event_by_id(event_id):
     """API endpoint to get details of a single event by its ID."""
     event = Event.query.get(event_id)  # Fetch event from database by ID

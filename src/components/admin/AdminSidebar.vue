@@ -90,6 +90,9 @@
           <a class="s-item" :class="{ active: activeTab==='content' }" @click.prevent="$emit('set-active', 'content')">
             <span class="s-dot"></span>Events
           </a>
+          <a class="s-item" :class="{ active: activeTab==='bedriftsmeldinger' }" @click.prevent="$emit('set-active', 'bedriftsmeldinger')">
+            <span class="s-dot"></span>Bedriftsmeldinger
+          </a>
         </div>
       </div>
       <div class="sidebar-group">

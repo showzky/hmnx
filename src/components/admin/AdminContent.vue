@@ -1,144 +1,31 @@
 <template>
   <main class="admin-content">
     <div class="content-area">
-      <section v-if="isOnlyProducer && activeTab === 'content'">
-        <div class="sec-head mb24">
-          <div>
-            <div class="sec-title">Hendelser / <em>Oversikt</em></div>
-            <div class="sec-subtitle">Opprett og administrer kommende hendelser.</div>
-          </div>
-        </div>
-        <div class="panel mb16">
-          <div class="panel-head">
-            <span class="panel-title">Eksisterende hendelser</span>
-            <input
-              type="text"
-              :value="searchQuery"
-              @input="$emit('update:searchQuery', $event.target.value)"
-              placeholder="Sok hendelser..."
-              class="search-input"
-              style="max-width:220px;"
-            />
-          </div>
-          <div class="panel-body" style="padding:0;">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th style="width:30px;"></th>
-                  <th>Navn</th>
-                  <th>Dato</th>
-                  <th>Tid</th>
-                  <th style="width:90px;">Handlinger</th>
-                </tr>
-              </thead>
-              <tbody v-if="upcomingEventsData && upcomingEventsData.length">
-                <tr v-for="element in upcomingEventsData" :key="element.id">
-                  <td class="drag-handle">|||</td>
-                  <td>{{ element.event_name }}</td>
-                  <td>{{ formatDate(element.event_date) }}</td>
-                  <td>{{ formatTime(element.event_time) }}</td>
-                  <td>
-                    <button class="btn btn-danger btn-sm" @click="$emit('deleteEvent', element.id)">
-                      Slett
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-              <tbody v-else>
-                <tr><td colspan="5" style="color:var(--muted);font-style:italic;">Ingen hendelser funnet.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-head"><span class="panel-title">Opprett ny hendelse</span></div>
-          <div class="panel-body">
-            <div class="form-grid">
-              <div class="form-group">
-                <label class="form-label">Navn</label>
-                <input
-                  class="form-input"
-                  type="text"
-                  :value="newEvent.event_name"
-                  @input="updateNewEventField('event_name', $event.target.value)"
-                  placeholder="Hendelsesnavn"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Dato</label>
-                <input
-                  class="form-input"
-                  type="date"
-                  :value="newEvent.event_date"
-                  @input="updateNewEventField('event_date', $event.target.value)"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Tid</label>
-                <input
-                  class="form-input"
-                  type="time"
-                  :value="newEvent.event_time"
-                  @input="updateNewEventField('event_time', $event.target.value)"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Mal</label>
-                <select
-                  class="form-select"
-                  :value="newEvent.template_name"
-                  @input="updateNewEventField('template_name', $event.target.value)"
-                  required
-                >
-                  <option value="" disabled>Velg mal</option>
-                  <option value="template1">Template 1 (Bilde-fokus)</option>
-                  <option value="template2">Template 2 (Tekst-fokus)</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Beskrivelse (valgfritt)</label>
-              <textarea
-                class="form-textarea"
-                :value="newEvent.event_description"
-                @input="updateNewEventField('event_description', $event.target.value)"
-                placeholder="Kort hendelsesinfo..."
-                rows="3"
-              ></textarea>
-            </div>
-            <div class="form-group">
-              <label class="file-upload-label">
-                <span>Velg bilde</span>
-                <input
-                  type="file"
-                  @change="$emit('handleImageUpload', $event)"
-                  accept="image/*"
-                  class="hidden-file-input"
-                />
-              </label>
-            </div>
-            <div class="form-group">
-              <label class="custom-checkbox">
-                <input
-                  type="checkbox"
-                  :checked="newEvent.notify_users"
-                  @change="updateNewEventField('notify_users', $event.target.checked)"
-                />
-                <span style="color:var(--muted);font-size:13px;margin-left:6px;">Varsle alle brukere</span>
-              </label>
-            </div>
-            <button class="btn btn-red" @click="$emit('createEvent')">Opprett</button>
-            <div
-              v-if="createEventMessage"
-              class="form-message"
-              :class="{ success: createEventSuccess, error: !createEventSuccess }"
-              style="margin-top:10px;"
-            >
-              {{ createEventMessage }}
-            </div>
-          </div>
-        </div>
-      </section>
+
+      <!-- CHANGED THIS - Tabs accessible to both admin/developer AND producer -->
+      <DashboardTab
+        v-if="activeTab === 'dashboard'"
+        :displayName="displayName"
+        :totalUsers="usersList.length"
+        :upcomingEventsData="upcomingEventsData"
+        :widgets="widgets"
+      />
+
+      <EventsTab
+        v-if="activeTab === 'content'"
+        :searchQuery="searchQuery"
+        :upcomingEventsData="upcomingEventsData"
+        :newEvent="newEvent"
+        :createEventMessage="createEventMessage"
+        :createEventSuccess="createEventSuccess"
+        @deleteEvent="$emit('deleteEvent', $event)"
+        @handleImageUpload="$emit('handleImageUpload', $event)"
+        @createEvent="$emit('createEvent')"
+        @update:searchQuery="$emit('update:searchQuery', $event)"
+        @update:newEvent="$emit('update:newEvent', $event)"
+      />
+
+      <BedriftsmeldingTab v-if="activeTab === 'bedriftsmeldinger'" />
 
       <MusicTab
         v-if="activeTab === 'music'"
@@ -151,34 +38,12 @@
         @reorderTracks="$emit('reorderTracks', $event)"
       />
 
+      <!-- Admin/Developer-only tabs -->
       <template v-if="!isOnlyProducer">
-        <DashboardTab
-          v-if="activeTab === 'dashboard'"
-          :displayName="displayName"
-          :totalUsers="usersList.length"
-          :upcomingEventsData="upcomingEventsData"
-          :widgets="widgets"
-        />
 
         <SystemTab v-if="activeTab === 'system'" />
 
-        <EventsTab
-          v-if="activeTab === 'content'"
-          :searchQuery="searchQuery"
-          :upcomingEventsData="upcomingEventsData"
-          :newEvent="newEvent"
-          :createEventMessage="createEventMessage"
-          :createEventSuccess="createEventSuccess"
-          @deleteEvent="$emit('deleteEvent', $event)"
-          @handleImageUpload="$emit('handleImageUpload', $event)"
-          @createEvent="$emit('createEvent')"
-          @update:searchQuery="$emit('update:searchQuery', $event)"
-          @update:newEvent="$emit('update:newEvent', $event)"
-        />
-
         <ShopTab v-if="activeTab === 'shop'" />
-
-        <BedriftsmeldingTab v-if="activeTab === 'bedriftsmeldinger'" />
 
         <NewsTab v-if="activeTab === 'news'" />
 

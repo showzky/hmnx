@@ -192,7 +192,19 @@ export default {
       try {
         const { data } = await axios.get('events', { headers: this.authH() });
         const list = data.events || data || [];
-        this.events = list.slice(0, 3).map(e => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        this.events = list
+          .filter(e => {
+            const rawDate = e.event_date || e.date;
+            if (!rawDate) return false;
+            const eventDate = new Date(rawDate);
+            eventDate.setHours(0, 0, 0, 0);
+            return eventDate >= today;
+          })
+          .slice(0, 3)
+          .map(e => {
           const d = new Date(e.event_date || e.date);
           return {
             id: e.id,

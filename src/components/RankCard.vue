@@ -1,6 +1,6 @@
 <!-- Design system: /HMN_DESIGN_SYSTEM_v2.md -->
 <template>
-  <div class="rank-card" :class="normalizedVariant">
+  <div class="rank-card" :class="[normalizedVariant, { 'has-color': colorRgb }]" :style="colorVars">
     <div class="rank-glow"></div>
     <div class="rank-card-inner">
       <div class="rank-icon-wrap">{{ meta.icon }}</div>
@@ -33,11 +33,24 @@ const props = defineProps({
   desc:     { type: String, default: '' },
   since:    { type: String, default: '' },
   label:    { type: String, default: 'Din rang' },
+  color:    { type: String, default: '' }, // ADDED THIS - badge_color from DB
 })
+
+function hexToRgb(hex) {
+  if (!hex) return null
+  const h = hex.replace('#', '')
+  if (h.length !== 6) return null
+  const r = parseInt(h.substring(0, 2), 16)
+  const g = parseInt(h.substring(2, 4), 16)
+  const b = parseInt(h.substring(4, 6), 16)
+  return `${r}, ${g}, ${b}`
+}
 
 const normalizedVariant = computed(() => props.variant.toLowerCase())
 const meta              = computed(() => RANK_META[normalizedVariant.value] ?? { icon: '👤', desc: '' })
 const effectiveDesc     = computed(() => props.desc || meta.value.desc)
+const colorRgb          = computed(() => hexToRgb(props.color)) // ADDED THIS
+const colorVars         = computed(() => colorRgb.value ? { '--rc': colorRgb.value } : {}) // ADDED THIS
 </script>
 
 <style scoped>
@@ -111,4 +124,12 @@ const effectiveDesc     = computed(() => props.desc || meta.value.desc)
 .rank-card.testrolle  .rank-label     { color: #9070f0; }
 .rank-card.testrolle  .rank-name      { color: #a880ff; }
 .rank-card.testrolle  .rank-since     { color: var(--purple); }
+
+/* ── DYNAMIC COLOR (from DB badge_color) ── overrides role-specific styles ── */
+.rank-card.has-color                { background: linear-gradient(145deg, rgba(var(--rc),0.08), rgba(var(--rc),0.03)); border-color: rgba(var(--rc),0.25); }
+.rank-card.has-color .rank-glow     { background: radial-gradient(ellipse 100% 100% at 0% 0%, rgba(var(--rc),0.1), transparent 70%); }
+.rank-card.has-color .rank-icon-wrap { background: rgba(var(--rc),0.12); border: 1px solid rgba(var(--rc),0.25); }
+.rank-card.has-color .rank-label     { color: rgba(var(--rc),0.7); }
+.rank-card.has-color .rank-name      { color: rgb(var(--rc)); }
+.rank-card.has-color .rank-since     { color: rgba(var(--rc),0.7); }
 </style>
