@@ -474,6 +474,326 @@ def get_backend_base_url():
     return request.host_url.rstrip('/')
 
 
+def get_frontend_base_url():
+    configured = os.getenv('FRONTEND_URL')
+    if configured:
+        return configured.rstrip('/')
+    return 'http://localhost:5174'
+
+
+def get_openxbl_api_key():
+    return (os.getenv('OPENXBL_API_KEY') or os.getenv('XBL_IO_API_KEY') or '').strip()
+
+
+def is_openxbl_configured():
+    return bool(get_openxbl_api_key())
+
+
+def openxbl_api_get(path, params=None):
+    api_key = get_openxbl_api_key()
+    if not api_key:
+        raise RuntimeError('OPENXBL_API_KEY is not configured')
+
+    response = requests.get(
+        f"https://xbl.io/api/v2/{path.lstrip('/')}",
+        params=params,
+        headers={
+            'X-Authorization': api_key,
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US',
+        },
+        timeout=8,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def first_non_empty(*values):
+    for value in values:
+        if value not in (None, '', [], {}):
+            return value
+    return None
+
+
+def parse_int(value, default=0):
+    try:
+        if value in (None, ''):
+            return default
+        return int(str(value).replace(',', '').strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def normalize_xbox_profile(profile):
+    settings = {}
+    for setting in profile.get('settings', []) or []:
+        values = setting.get('value')
+        if isinstance(values, list):
+            values = values[0] if values else None
+        settings[setting.get('id')] = values
+
+    return {
+        'xuid': first_non_empty(profile.get('xuid'), profile.get('id'), profile.get('hostId')),
+        'display_name': first_non_empty(
+            profile.get('gamertag'),
+            profile.get('modernGamertag'),
+            profile.get('uniqueModernGamertag'),
+            profile.get('displayName'),
+            settings.get('Gamertag'),
+        ),
+        'gamerscore': parse_int(first_non_empty(profile.get('gamerscore'), profile.get('gamerScore'), settings.get('Gamerscore'))),
+        'avatar_url': first_non_empty(
+            profile.get('displayPicRaw'),
+            profile.get('avatar'),
+            settings.get('GameDisplayPicRaw'),
+            settings.get('GameDisplayPic'),
+        ),
+        'presence_state': first_non_empty(profile.get('presenceState'), settings.get('PresenceState')),
+        'presence_text': first_non_empty(profile.get('presenceText'), settings.get('PresenceText')),
+        'bio': first_non_empty(profile.get('bio'), settings.get('Bio')),
+    }
+
+
+def normalize_xbox_search_results(payload):
+    results = []
+    for person in payload.get('people', []) or []:
+        normalized = normalize_xbox_profile(person)
+        if not normalized['xuid']:
+            continue
+        normalized['raw'] = person
+        results.append(normalized)
+    return results
+
+
+def normalize_xbox_achievement_title(item):
+    title_id = first_non_empty(
+        item.get('titleId'),
+        item.get('serviceConfigId'),
+        item.get('productId'),
+        item.get('id'),
+    )
+    title_name = first_non_empty(
+        item.get('name'),
+        item.get('titleName'),
+        item.get('title'),
+        item.get('productTitle'),
+        item.get('serviceConfigId'),
+    )
+    earned = parse_int(first_non_empty(item.get('earnedAchievements'), item.get('progression'), item.get('currentAchievements')))
+    total = parse_int(first_non_empty(item.get('totalAchievements'), item.get('maxAchievements')))
+    gamerscore = parse_int(first_non_empty(item.get('earnedGamerscore'), item.get('currentGamerscore'), item.get('gamerscore')))
+    total_gamerscore = parse_int(first_non_empty(item.get('maxGamerscore'), item.get('totalGamerscore')))
+    image_url = first_non_empty(item.get('displayImage'), item.get('artwork'), item.get('image'), item.get('tileImageUrl'))
+    last_unlock = first_non_empty(item.get('lastUnlock'), item.get('lastUnlockTime'), item.get('lastPlayed'))
+
+    return {
+        'id': title_id or title_name or 'xbox-title',
+        'title_id': title_id,
+        'title': title_name or 'Xbox-tittel',
+        'code': ''.join(part[0] for part in (title_name or 'Xbox').split()[:3]).upper()[:4] or 'XB',
+        'platform': 'Xbox',
+        'platform_class': 'gp-x',
+        'left_stat': f'{gamerscore}G' if gamerscore else (f'{earned}/{total} ach' if total else 'Xbox'),
+        'right_stat': f'{earned}/{total} ach' if total else (f'{total_gamerscore}G mulig' if total_gamerscore else 'Achievement-data'),
+        'gamerscore': gamerscore,
+        'total_gamerscore': total_gamerscore,
+        'earned_achievements': earned,
+        'total_achievements': total,
+        'image_url': image_url,
+        'logo_url': image_url,
+        'last_unlock': last_unlock,
+    }
+
+
+def normalize_xbox_achievement_item(item, fallback_title=None):
+    name = first_non_empty(item.get('name'), item.get('achievementName'), item.get('title'))
+    title_name = fallback_title or first_non_empty(item.get('titleName'), item.get('gameName'), item.get('title')) or 'Xbox'
+    gamerscore = parse_int(first_non_empty(item.get('rewardsGamerscore'), item.get('gamerscore'), item.get('value')))
+    unlocked = bool(first_non_empty(item.get('isUnlocked'), item.get('unlocked')))
+    unlocked_at = first_non_empty(item.get('timeUnlocked'), item.get('unlockTime'), item.get('dateUnlocked'))
+    media_assets = item.get('mediaAssets') or []
+    icon_url = first_non_empty(
+        item.get('lockedIconUrl'),
+        item.get('icon'),
+        media_assets[0].get('url') if media_assets else None,
+    )
+
+    parsed_timestamp = None
+    if isinstance(unlocked_at, str) and unlocked_at:
+        try:
+            parsed_timestamp = to_utc_datetime(datetime.fromisoformat(unlocked_at.replace('Z', '+00:00')))
+        except ValueError:
+            parsed_timestamp = None
+
+    return {
+        'id': first_non_empty(item.get('id'), item.get('achievementId'), name, title_name),
+        'title': name or 'Xbox achievement',
+        'game': title_name,
+        'icon': icon_url or '🏆',
+        'is_img': bool(icon_url),
+        'icon_class': 'aigg',
+        'platform': 'Xbox',
+        'platform_class': 'apx',
+        'timestamp': parsed_timestamp,
+        'unlocked': unlocked,
+        'gamerscore': gamerscore,
+    }
+
+
+def fetch_xbox_profile_by_xuid(xuid):
+    payload = openxbl_api_get(f'account/{xuid}')
+    people = payload.get('people', []) or payload.get('profileUsers', []) or []
+    if people:
+        return normalize_xbox_profile(people[0])
+    return None
+
+
+def fetch_xbox_presence(xuid):
+    payload = openxbl_api_get(f'{xuid}/presence')
+    presence_root = payload.get('presence') or payload.get('people') or payload
+    if isinstance(presence_root, list) and presence_root:
+        return presence_root[0]
+    return presence_root if isinstance(presence_root, dict) else {}
+
+
+def fetch_xbox_title_achievements(xuid):
+    payload = openxbl_api_get(f'achievements/player/{xuid}')
+    titles = payload.get('titles') or payload.get('achievements') or payload.get('results') or []
+    return [normalize_xbox_achievement_title(item) for item in titles if isinstance(item, dict)]
+
+
+def fetch_xbox_achievement_details(xuid, title_id, fallback_title=None):
+    payload = openxbl_api_get(f'achievements/player/{xuid}/{title_id}')
+    achievements = payload.get('achievements') or payload.get('items') or payload.get('results') or []
+    return [
+        normalize_xbox_achievement_item(item, fallback_title=fallback_title)
+        for item in achievements
+        if isinstance(item, dict)
+    ]
+
+
+def build_xbox_summary(account):
+    if not account:
+        return {
+            'connected': False,
+            'configured': is_openxbl_configured(),
+            'provider': 'xbox',
+            'message': 'Xbox er ikke tilkoblet.',
+            'current_game': None,
+            'recent_games': [],
+            'all_games': [],
+            'totals': {
+                'gamerscore': 0,
+                'owned_games': 0,
+                'recent_games': 0,
+                'achievements_unlocked': 0,
+            },
+        }
+
+    if not is_openxbl_configured():
+        return {
+            'connected': True,
+            'configured': False,
+            'provider': 'xbox',
+            'message': 'Xbox er koblet til, men OPENXBL_API_KEY mangler i backend-env.',
+            'current_game': None,
+            'recent_games': [],
+            'all_games': [],
+            'totals': {
+                'gamerscore': 0,
+                'owned_games': 0,
+                'recent_games': 0,
+                'achievements_unlocked': 0,
+            },
+        }
+
+    profile = fetch_xbox_profile_by_xuid(account.provider_account_id) or {}
+    presence = fetch_xbox_presence(account.provider_account_id) or {}
+    titles = fetch_xbox_title_achievements(account.provider_account_id)
+
+    recent_games = titles[:3]
+    all_games = titles[:6]
+    current_game_name = first_non_empty(
+        presence.get('presenceText'),
+        profile.get('presence_text'),
+        recent_games[0]['title'] if recent_games else None,
+    )
+    current_game = None
+    if current_game_name:
+        current_game = {
+            'title': current_game_name,
+            'subtitle': 'Xbox Live',
+            'provider': 'Xbox',
+        }
+
+    return {
+        'connected': True,
+        'configured': True,
+        'provider': 'xbox',
+        'message': None,
+        'current_game': current_game,
+        'recent_games': recent_games,
+        'all_games': all_games,
+        'totals': {
+            'gamerscore': profile.get('gamerscore', 0),
+            'owned_games': len(titles),
+            'recent_games': len(recent_games),
+            'achievements_unlocked': sum(item.get('earned_achievements', 0) for item in titles),
+        },
+    }
+
+
+def get_xbox_oauth_config():
+    client_id = (os.getenv('MICROSOFT_CLIENT_ID') or '').strip()
+    client_secret = (os.getenv('MICROSOFT_CLIENT_SECRET') or '').strip()
+    tenant_id = (os.getenv('MICROSOFT_TENANT_ID') or 'common').strip() or 'common'
+
+    if not client_id or not client_secret:
+        return None
+
+    return {
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'tenant_id': tenant_id,
+        'authorize_url': f'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize',
+        'token_url': f'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token',
+        'scope': 'openid profile email offline_access User.Read',
+    }
+
+
+def fetch_microsoft_profile(access_token):
+    profile_response = requests.get(
+        'https://graph.microsoft.com/v1.0/me',
+        headers={
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/json',
+        },
+        timeout=8,
+    )
+    profile_response.raise_for_status()
+    profile = profile_response.json()
+
+    avatar_url = None
+    try:
+        avatar_response = requests.get(
+            'https://graph.microsoft.com/v1.0/me/photos/48x48/$value',
+            headers={'Authorization': f'Bearer {access_token}'},
+            timeout=8,
+        )
+        if avatar_response.ok:
+            avatar_url = 'https://graph.microsoft.com/v1.0/me/photos/48x48/$value'
+    except requests.RequestException:
+        avatar_url = None
+
+    return {
+        'account_id': profile.get('id'),
+        'display_name': profile.get('displayName') or profile.get('userPrincipalName') or profile.get('mail'),
+        'email': profile.get('mail') or profile.get('userPrincipalName'),
+        'avatar_url': avatar_url,
+        'profile_url': 'https://account.microsoft.com/',
+    }
+
+
 def build_connection_payload(user):
     connected_accounts = {account.provider.lower(): account for account in user.connected_accounts}
     discord_suffix = str(user.discord_id)[-4:] if user.discord_id else 'link'
@@ -497,7 +817,7 @@ def build_connection_payload(user):
                 "provider": "xbox",
                 "connected": xbox_account is not None,
                 "displayName": xbox_account.display_name if xbox_account else None,
-                "subtitle": "Ikke tilkoblet",
+                "subtitle": "Xbox-konto tilkoblet" if xbox_account else "Ikke tilkoblet",
                 "avatarUrl": xbox_account.avatar_url if xbox_account else None,
                 "avatarText": "X",
                 "providerAccountId": xbox_account.provider_account_id if xbox_account else None,
@@ -568,7 +888,180 @@ def steam_api_get(interface, method, version, params):
     )
     response.raise_for_status()
     return response.json()
-    db.session.commit()
+
+
+def get_display_name(user):
+    if not user:
+        return 'Ukjent'
+    if user.username:
+        return user.username
+    if user.email:
+        return user.email.split('@')[0]
+    return f'Bruker {user.id}'
+
+
+def minutes_to_hours(minutes):
+    hours = round((minutes or 0) / 60, 2)
+    if float(hours).is_integer():
+        return int(hours)
+    return hours
+
+
+def build_user_color(user):
+    palette = [
+        'linear-gradient(135deg,#c8102e,#7a0e1e)',
+        'linear-gradient(135deg,#1a4a7a,#0a2a5a)',
+        'linear-gradient(135deg,#1a6a3a,#0a3a1a)',
+        'linear-gradient(135deg,#4a1a7a,#2a0a5a)',
+        'linear-gradient(135deg,#5a5a1a,#3a3a0a)',
+        'linear-gradient(135deg,#1a3a5a,#0a1a3a)',
+    ]
+    if not user:
+        return palette[0]
+    return palette[user.id % len(palette)]
+
+
+def to_utc_datetime(value):
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def format_time_ago(value):
+    dt = to_utc_datetime(value)
+    if not dt:
+        return ''
+    now = datetime.now(timezone.utc)
+    diff = now - dt
+    seconds = max(int(diff.total_seconds()), 0)
+    if seconds < 60:
+        return 'nettopp'
+    if seconds < 3600:
+        minutes = seconds // 60
+        return f'{minutes} min siden'
+    if seconds < 86400:
+        hours = seconds // 3600
+        return f'{hours}t siden'
+    if seconds < 604800:
+        days = seconds // 86400
+        return f'{days}d siden'
+    return dt.strftime('%d.%m.%Y')
+
+
+def build_steam_game_payload(game):
+    app_id = game.get('appid')
+    name = game.get('name') or f"App {app_id}"
+    logo_hash = game.get('img_logo_url')
+    return {
+        "id": app_id,
+        "title": name,
+        "code": ''.join(part[0] for part in name.split()[:3]).upper()[:4] or 'GM',
+        "platform": "Steam",
+        "platform_class": "gp-s",
+        "left_stat": f"{minutes_to_hours(game.get('playtime_forever', 0))}t totalt",
+        "right_stat": f"{minutes_to_hours(game.get('playtime_2weeks', 0))}t siste 2 uker",
+        "playtime_forever_minutes": game.get('playtime_forever', 0),
+        "playtime_2weeks_minutes": game.get('playtime_2weeks', 0),
+        "app_id": app_id,
+        "image_url": f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/header.jpg" if app_id else None,
+        "logo_url": (
+            f"https://media.steampowered.com/steamcommunity/public/images/apps/{app_id}/{logo_hash}.jpg"
+            if app_id and logo_hash else None
+        ),
+    }
+
+
+def fetch_steam_presence(account):
+    if not account or not account.provider_account_id or not os.getenv('STEAM_WEB_API_KEY'):
+        return None
+
+    steam_id = account.provider_account_id
+    player_summary = steam_api_get(
+        'ISteamUser',
+        'GetPlayerSummaries',
+        'v0002',
+        {'steamids': steam_id}
+    )
+    recent_games_response = steam_api_get(
+        'IPlayerService',
+        'GetRecentlyPlayedGames',
+        'v0001',
+        {'steamid': steam_id, 'count': 3}
+    )
+
+    player = (player_summary or {}).get('response', {}).get('players', [{}])[0]
+    recent_games = (recent_games_response or {}).get('response', {}).get('games', []) or []
+    recent_payload = [build_steam_game_payload(game) for game in recent_games]
+    recent_primary = recent_payload[0] if recent_payload else None
+    is_playing = bool(player.get('gameextrainfo'))
+
+    return {
+        'steam_id': steam_id,
+        'player': player,
+        'recent_games': recent_games,
+        'recent_payload': recent_payload,
+        'current_game_name': player.get('gameextrainfo'),
+        'current_game': recent_primary if is_playing and recent_primary else None,
+        'last_game': recent_primary,
+        'is_playing': is_playing,
+        'last_seen': format_time_ago(
+            datetime.fromtimestamp(player.get('lastlogoff', 0), tz=timezone.utc)
+        ) if player.get('lastlogoff') else '',
+    }
+
+
+def fetch_latest_steam_achievement_event(account, presence=None):
+    if not account or not account.provider_account_id or not os.getenv('STEAM_WEB_API_KEY'):
+        return None
+
+    presence = presence or fetch_steam_presence(account)
+    if not presence:
+        return None
+
+    recent_games = presence.get('recent_games', [])
+    for game in recent_games[:2]:
+        app_id = game.get('appid')
+        if not app_id:
+            continue
+        try:
+            achievement_response = steam_api_get(
+                'ISteamUserStats',
+                'GetPlayerAchievements',
+                'v0001',
+                {'steamid': account.provider_account_id, 'appid': app_id, 'l': 'english'}
+            )
+        except requests.RequestException:
+            continue
+
+        achievements = (achievement_response or {}).get('playerstats', {}).get('achievements', []) or []
+        unlocked = [
+            achievement for achievement in achievements
+            if achievement.get('achieved') == 1 and achievement.get('unlocktime')
+        ]
+        if not unlocked:
+            continue
+
+        latest = max(unlocked, key=lambda item: item.get('unlocktime', 0))
+        unlocked_at = datetime.fromtimestamp(latest['unlocktime'], tz=timezone.utc)
+        return {
+            'timestamp': unlocked_at,
+            'kind': 'game_achievement',
+            'provider': 'steam',
+            'providerLabel': 'Steam',
+            'actor_name': get_display_name(account.user),
+            'actor_avatar_url': account.user.avatar,
+            'actor_color': build_user_color(account.user),
+            'text': (
+                f"<strong>{get_display_name(account.user)}</strong> låste opp achievement "
+                f"<em>{latest.get('name') or latest.get('apiname') or 'Ukjent achievement'}</em>"
+            ),
+            'game': game.get('name'),
+            'time': format_time_ago(unlocked_at),
+            'thumb': build_steam_game_payload(game),
+        }
+    return None
 
 
 def can_manage_music(user):
@@ -1258,9 +1751,17 @@ def start_steam_connection():
     return jsonify({"redirect_url": steam_url}), 200
 
 
+@app.route('/api/connections/xbox/start', methods=['GET'])
+@jwt_required()
+def start_xbox_connection():
+    return jsonify({
+        "error": "Xbox-kobling er midlertidig deaktivert til ekte Microsoft/Xbox-verifisering er på plass."
+    }), 410
+
+
 @app.route('/api/connections/steam/callback', methods=['GET'])
 def steam_connection_callback():
-    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5174').rstrip('/')
+    frontend_url = get_frontend_base_url()
     session_user_id = session.get('steam_link_user_id')
     session_nonce = session.get('steam_link_nonce')
     returned_nonce = request.args.get('link_nonce')
@@ -1336,6 +1837,95 @@ def steam_connection_callback():
     return redirect(f"{frontend_url}/dashboard?linked=steam")
 
 
+@app.route('/api/connections/xbox/callback', methods=['GET'])
+def xbox_connection_callback():
+    frontend_url = get_frontend_base_url()
+    oauth_config = get_xbox_oauth_config()
+    if not oauth_config:
+        return redirect(f"{frontend_url}/dashboard?connection_error=xbox_not_configured")
+
+    session_user_id = session.get('xbox_link_user_id')
+    session_state = session.get('xbox_link_state')
+    returned_state = request.args.get('state')
+    auth_code = request.args.get('code')
+    auth_error = request.args.get('error')
+
+    if auth_error:
+        session.pop('xbox_link_user_id', None)
+        session.pop('xbox_link_state', None)
+        return redirect(f"{frontend_url}/dashboard?connection_error=xbox_access_denied")
+
+    if not session_user_id or not session_state or session_state != returned_state:
+        return redirect(f"{frontend_url}/dashboard?connection_error=xbox_state_invalid")
+
+    if not auth_code:
+        return redirect(f"{frontend_url}/dashboard?connection_error=xbox_code_missing")
+
+    callback_url = f'{get_backend_base_url()}/api/connections/xbox/callback'
+
+    try:
+        token_response = requests.post(
+            oauth_config['token_url'],
+            data={
+                'client_id': oauth_config['client_id'],
+                'client_secret': oauth_config['client_secret'],
+                'code': auth_code,
+                'grant_type': 'authorization_code',
+                'redirect_uri': callback_url,
+                'scope': oauth_config['scope'],
+            },
+            headers={'Accept': 'application/json'},
+            timeout=8,
+        )
+        token_response.raise_for_status()
+        token_payload = token_response.json()
+        access_token = token_payload.get('access_token')
+        refresh_token = token_payload.get('refresh_token')
+        if not access_token:
+            raise ValueError('Missing Microsoft access token')
+
+        xbox_profile = fetch_microsoft_profile(access_token)
+    except (requests.RequestException, ValueError):
+        return redirect(f"{frontend_url}/dashboard?connection_error=xbox_profile_failed")
+
+    provider_account_id = xbox_profile.get('account_id')
+    if not provider_account_id:
+        return redirect(f"{frontend_url}/dashboard?connection_error=xbox_id_missing")
+
+    user = User.query.get(int(session_user_id))
+    if not user:
+        return redirect(f"{frontend_url}/dashboard?connection_error=user_missing")
+
+    existing_owner = ConnectedAccount.query.filter_by(
+        provider='xbox',
+        provider_account_id=provider_account_id
+    ).first()
+    if existing_owner and existing_owner.user_id != user.id:
+        return redirect(f"{frontend_url}/dashboard?connection_error=xbox_already_linked")
+
+    account = ConnectedAccount.query.filter_by(user_id=user.id, provider='xbox').first()
+    if not account:
+        account = ConnectedAccount(
+            user_id=user.id,
+            provider='xbox',
+            provider_account_id=provider_account_id,
+        )
+        db.session.add(account)
+
+    account.provider_account_id = provider_account_id
+    account.display_name = xbox_profile.get('display_name') or xbox_profile.get('email') or 'Xbox bruker'
+    account.avatar_url = xbox_profile.get('avatar_url')
+    account.profile_url = xbox_profile.get('profile_url')
+    account.access_token = access_token
+    account.refresh_token = refresh_token
+    account.updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+
+    session.pop('xbox_link_user_id', None)
+    session.pop('xbox_link_state', None)
+    return redirect(f"{frontend_url}/dashboard?linked=xbox")
+
+
 @app.route('/api/dashboard/gaming-summary', methods=['GET'])
 @jwt_required()
 def get_dashboard_gaming_summary():
@@ -1344,138 +1934,456 @@ def get_dashboard_gaming_summary():
         return jsonify({"msg": "User not found"}), 404
 
     steam_account = ConnectedAccount.query.filter_by(user_id=user.id, provider='steam').first()
-    if not steam_account:
-        return jsonify({
-            "connected": False,
-            "configured": bool(os.getenv('STEAM_WEB_API_KEY')),
-            "provider": "steam",
-            "message": "Steam er ikke tilkoblet.",
-            "current_game": None,
-            "recent_games": [],
-            "all_games": [],
-            "totals": {
-                "total_hours": 0,
-                "owned_games": 0,
-                "recent_games": 0,
-            }
-        }), 200
+    xbox_account = ConnectedAccount.query.filter_by(user_id=user.id, provider='xbox').first()
 
-    if not os.getenv('STEAM_WEB_API_KEY'):
-        return jsonify({
-            "connected": True,
-            "configured": False,
-            "provider": "steam",
-            "message": "Steam er koblet til, men STEAM_WEB_API_KEY mangler i backend-env.",
-            "current_game": None,
-            "recent_games": [],
-            "all_games": [],
-            "totals": {
-                "total_hours": 0,
-                "owned_games": 0,
-                "recent_games": 0,
-            }
-        }), 200
+    steam_summary = {
+        'connected': False,
+        'configured': bool(os.getenv('STEAM_WEB_API_KEY')),
+        'provider': 'steam',
+        'message': 'Steam er ikke tilkoblet.',
+        'current_game': None,
+        'recent_games': [],
+        'all_games': [],
+        'totals': {'total_hours': 0, 'owned_games': 0, 'recent_games': 0},
+    }
 
-    steam_id = steam_account.provider_account_id
+    if steam_account:
+        if not os.getenv('STEAM_WEB_API_KEY'):
+            steam_summary.update({
+                'connected': True,
+                'configured': False,
+                'message': 'Steam er koblet til, men STEAM_WEB_API_KEY mangler i backend-env.',
+            })
+        else:
+            steam_id = steam_account.provider_account_id
+            try:
+                owned_games_response = steam_api_get(
+                    'IPlayerService',
+                    'GetOwnedGames',
+                    'v0001',
+                    {'steamid': steam_id, 'include_appinfo': 1, 'include_played_free_games': 1}
+                )
+                presence = fetch_steam_presence(steam_account)
+            except requests.RequestException as exc:
+                steam_summary.update({
+                    'connected': True,
+                    'configured': True,
+                    'message': f'Kunne ikke hente Steam-data akkurat nå: {exc}',
+                })
+            else:
+                player = (presence or {}).get('player', {})
+                recent_games = (presence or {}).get('recent_games', [])
+                owned_games = (owned_games_response or {}).get('response', {}).get('games', []) or []
+
+                recent_payload = [build_steam_game_payload(game) for game in recent_games[:3]]
+                all_games_payload = [
+                    build_steam_game_payload(game)
+                    for game in sorted(owned_games, key=lambda item: item.get('playtime_forever', 0), reverse=True)[:6]
+                ]
+
+                current_game_name = player.get('gameextrainfo') or (recent_payload[0]['title'] if recent_payload else None)
+                current_game = None
+                if current_game_name:
+                    matched_recent = next((game for game in recent_payload if game['title'] == current_game_name), None)
+                    current_game = {
+                        'title': current_game_name,
+                        'subtitle': matched_recent['right_stat'] if matched_recent else (
+                            f"{minutes_to_hours(recent_games[0].get('playtime_2weeks', 0))}t siste 2 uker" if recent_games else 'Steam'
+                        ),
+                        'provider': 'Steam',
+                    }
+
+                total_minutes = sum((game.get('playtime_forever', 0) or 0) for game in owned_games)
+                steam_summary = {
+                    'connected': True,
+                    'configured': True,
+                    'provider': 'steam',
+                    'message': None,
+                    'current_game': current_game,
+                    'recent_games': recent_payload,
+                    'all_games': all_games_payload or recent_payload,
+                    'totals': {
+                        'total_hours': minutes_to_hours(total_minutes),
+                        'owned_games': len(owned_games),
+                        'recent_games': len(recent_games),
+                    },
+                }
 
     try:
-        player_summary = steam_api_get(
-            'ISteamUser',
-            'GetPlayerSummaries',
-            'v0002',
-            {'steamids': steam_id}
-        )
-        recent_games_response = steam_api_get(
-            'IPlayerService',
-            'GetRecentlyPlayedGames',
-            'v0001',
-            {'steamid': steam_id, 'count': 6}
-        )
-        owned_games_response = steam_api_get(
-            'IPlayerService',
-            'GetOwnedGames',
-            'v0001',
-            {'steamid': steam_id, 'include_appinfo': 1, 'include_played_free_games': 1}
-        )
-    except requests.RequestException as exc:
+        xbox_summary = build_xbox_summary(xbox_account)
+    except (requests.RequestException, RuntimeError) as exc:
+        xbox_summary = {
+            'connected': xbox_account is not None,
+            'configured': is_openxbl_configured(),
+            'provider': 'xbox',
+            'message': f'Kunne ikke hente Xbox-data akkurat nå: {exc}',
+            'current_game': None,
+            'recent_games': [],
+            'all_games': [],
+            'totals': {
+                'gamerscore': 0,
+                'owned_games': 0,
+                'recent_games': 0,
+                'achievements_unlocked': 0,
+            },
+        }
+
+    if not steam_summary.get('connected') and not xbox_summary.get('connected'):
         return jsonify({
-            "connected": True,
-            "configured": True,
-            "provider": "steam",
-            "message": f"Kunne ikke hente Steam-data akkurat nå: {exc}",
-            "current_game": None,
-            "recent_games": [],
-            "all_games": [],
-            "totals": {
-                "total_hours": 0,
-                "owned_games": 0,
-                "recent_games": 0,
-            }
-        }), 502
+            'connected': False,
+            'configured': steam_summary.get('configured') or xbox_summary.get('configured'),
+            'provider': 'steam',
+            'message': 'Steam eller Xbox er ikke tilkoblet.',
+            'current_game': None,
+            'recent_games': [],
+            'all_games': [],
+            'totals': {
+                'total_hours': 0,
+                'owned_games': 0,
+                'recent_games': 0,
+                'gamerscore': 0,
+                'achievements_unlocked': 0,
+            },
+            'providers': {
+                'steam': steam_summary,
+                'xbox': xbox_summary,
+            },
+        }), 200
 
-    player = (player_summary or {}).get('response', {}).get('players', [{}])[0]
-    recent_games = (recent_games_response or {}).get('response', {}).get('games', []) or []
-    owned_games = (owned_games_response or {}).get('response', {}).get('games', []) or []
+    merged_recent_games = []
+    merged_all_games = []
+    if steam_summary.get('connected'):
+        merged_recent_games.extend(steam_summary.get('recent_games', []))
+        merged_all_games.extend(steam_summary.get('all_games', []))
+    if xbox_summary.get('connected'):
+        merged_recent_games.extend(xbox_summary.get('recent_games', []))
+        merged_all_games.extend(xbox_summary.get('all_games', []))
 
-    def minutes_to_hours(minutes):
-        hours = round((minutes or 0) / 60, 2)
-        if hours.is_integer():
-            hours = int(hours)
-        return hours
+    deduped_recent_games = []
+    seen_recent = set()
+    for item in merged_recent_games:
+        key = (item.get('platform'), item.get('title'))
+        if key in seen_recent:
+            continue
+        seen_recent.add(key)
+        deduped_recent_games.append(item)
+        if len(deduped_recent_games) >= 6:
+            break
 
-    def build_game_payload(game):
-        app_id = game.get('appid')
-        name = game.get('name') or f"App {app_id}"
-        logo_hash = game.get('img_logo_url')
-        return {
-            "id": app_id,
-            "title": name,
-            "code": ''.join(part[0] for part in name.split()[:3]).upper()[:4] or 'GM',
-            "platform": "Steam",
-            "platform_class": "gp-s",
-            "left_stat": f"{minutes_to_hours(game.get('playtime_forever', 0))}t totalt",
-            "right_stat": f"{minutes_to_hours(game.get('playtime_2weeks', 0))}t siste 2 uker",
-            "playtime_forever_minutes": game.get('playtime_forever', 0),
-            "playtime_2weeks_minutes": game.get('playtime_2weeks', 0),
-            "app_id": app_id,
-            "image_url": f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/header.jpg" if app_id else None,
-            "logo_url": (
-                f"https://media.steampowered.com/steamcommunity/public/images/apps/{app_id}/{logo_hash}.jpg"
-                if app_id and logo_hash else None
-            ),
-        }
+    deduped_all_games = []
+    seen_all = set()
+    for item in merged_all_games:
+        key = (item.get('platform'), item.get('title'))
+        if key in seen_all:
+            continue
+        seen_all.add(key)
+        deduped_all_games.append(item)
+        if len(deduped_all_games) >= 6:
+            break
 
-    recent_payload = [build_game_payload(game) for game in recent_games[:3]]
-    all_games_payload = [
-        build_game_payload(game)
-        for game in sorted(owned_games, key=lambda item: item.get('playtime_forever', 0), reverse=True)[:6]
-    ]
-
-    current_game_name = player.get('gameextrainfo') or (recent_payload[0]['title'] if recent_payload else None)
-    current_game = None
-    if current_game_name:
-        matched_recent = next((game for game in recent_payload if game['title'] == current_game_name), None)
-        current_game = {
-            "title": current_game_name,
-            "subtitle": matched_recent['right_stat'] if matched_recent else (
-                f"{minutes_to_hours(recent_games[0].get('playtime_2weeks', 0))}t siste 2 uker" if recent_games else 'Steam'
-            ),
-            "provider": "Steam",
-        }
-
-    total_minutes = sum((game.get('playtime_forever', 0) or 0) for game in owned_games)
+    active_summary = steam_summary if steam_summary.get('connected') else xbox_summary
     return jsonify({
-        "connected": True,
-        "configured": True,
-        "provider": "steam",
-        "message": None,
-        "current_game": current_game,
-        "recent_games": recent_payload,
-        "all_games": all_games_payload or recent_payload,
-        "totals": {
-            "total_hours": minutes_to_hours(total_minutes),
-            "owned_games": len(owned_games),
-            "recent_games": len(recent_games),
+        'connected': True,
+        'configured': steam_summary.get('configured') or xbox_summary.get('configured'),
+        'provider': active_summary.get('provider', 'steam'),
+        'message': active_summary.get('message'),
+        'current_game': active_summary.get('current_game') or xbox_summary.get('current_game'),
+        'recent_games': deduped_recent_games,
+        'all_games': deduped_all_games or deduped_recent_games,
+        'totals': {
+            'total_hours': steam_summary.get('totals', {}).get('total_hours', 0),
+            'owned_games': len(deduped_all_games),
+            'recent_games': len(deduped_recent_games),
+            'gamerscore': xbox_summary.get('totals', {}).get('gamerscore', 0),
+            'achievements_unlocked': xbox_summary.get('totals', {}).get('achievements_unlocked', 0),
+        },
+        'providers': {
+            'steam': steam_summary,
+            'xbox': xbox_summary,
+        },
+    }), 200
+
+
+@app.route('/api/home/social-summary', methods=['GET'])
+@jwt_required()
+def get_home_social_summary():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    now_playing = []
+    activity_events = []
+
+    steam_accounts = ConnectedAccount.query.filter_by(provider='steam').order_by(ConnectedAccount.updated_at.desc()).limit(8).all()
+    prioritized_accounts = []
+    seen_account_ids = set()
+
+    user_steam = next((account for account in steam_accounts if account.user_id == user.id), None)
+    if user_steam:
+        prioritized_accounts.append(user_steam)
+        seen_account_ids.add(user_steam.id)
+
+    for account in steam_accounts:
+        if account.id not in seen_account_ids:
+            prioritized_accounts.append(account)
+            seen_account_ids.add(account.id)
+
+    steam_presences = []
+    for account in prioritized_accounts[:5]:
+        try:
+            presence = fetch_steam_presence(account)
+        except requests.RequestException:
+            presence = None
+
+        if not presence:
+            continue
+
+        account_user = account.user
+        recent_primary = presence.get('last_game')
+        is_playing = presence.get('is_playing')
+        current_title = presence.get('current_game_name') or (recent_primary['title'] if recent_primary else 'Ingen nylig aktivitet')
+        steam_presences.append({
+            "timestamp_rank": recent_primary['playtime_2weeks_minutes'] if recent_primary else 0,
+            "username": get_display_name(account_user),
+            "avatarUrl": account_user.avatar,
+            "color": build_user_color(account_user),
+            "platform": 'steam' if is_playing else 'offline',
+            "platformLabel": 'Steam' if is_playing else 'Offline',
+            "online": bool(is_playing),
+            "game": current_title if is_playing else (f"Sist spilte: {recent_primary['title']}" if recent_primary else 'Ingen nylig spilling'),
+            "code": (recent_primary or {}).get('code', 'ST'),
+            "artBg": build_user_color(account_user),
+            "imageUrl": (recent_primary or {}).get('image_url') or (recent_primary or {}).get('logo_url'),
+            "meta": (
+                recent_primary['right_stat'] if is_playing and recent_primary
+                else (recent_primary['left_stat'] if recent_primary else 'Ikke nok data ennå')
+            ),
+            "lastSeen": presence.get('last_seen') or 'ukjent',
+        })
+
+        latest_steam_achievement = fetch_latest_steam_achievement_event(account, presence)
+        if latest_steam_achievement:
+            activity_events.append(latest_steam_achievement)
+
+    steam_presences.sort(key=lambda item: (not item['online'], -(item['timestamp_rank'] or 0), item['username'].lower()))
+    now_playing = steam_presences[:3]
+    for item in now_playing:
+        item.pop('timestamp_rank', None)
+
+    latest_site_achievements = (
+        db.session.query(UserAchievement, User, Achievement)
+        .join(User, UserAchievement.user_id == User.id)
+        .join(Achievement, UserAchievement.achievement_id == Achievement.id)
+        .order_by(UserAchievement.unlocked_at.desc())
+        .limit(5)
+        .all()
+    )
+
+    for unlock, unlock_user, achievement in latest_site_achievements:
+        activity_events.append({
+            'timestamp': to_utc_datetime(unlock.unlocked_at),
+            'kind': 'site_achievement',
+            'provider': 'hmn',
+            'providerLabel': 'HMN',
+            'actor_name': get_display_name(unlock_user),
+            'actor_avatar_url': unlock_user.avatar,
+            'actor_color': build_user_color(unlock_user),
+            'text': (
+                f"<strong>{get_display_name(unlock_user)}</strong> låste opp achievement "
+                f"<em>{achievement.name}</em>"
+            ),
+            'game': None,
+            'time': format_time_ago(unlock.unlocked_at),
+            'thumb': None,
+        })
+
+    recent_music_activities = (
+        db.session.query(Activity, User)
+        .join(User, Activity.user_id == User.id)
+        .filter(Activity.activity_type.like('music_upload:%'))
+        .order_by(Activity.timestamp.desc())
+        .limit(4)
+        .all()
+    )
+
+    for activity, activity_user in recent_music_activities:
+        song_id_part = activity.activity_type.split(':', 1)[1] if ':' in activity.activity_type else ''
+        song = Song.query.get(int(song_id_part)) if song_id_part.isdigit() else None
+        if not song:
+            continue
+        activity_events.append({
+            'timestamp': to_utc_datetime(activity.timestamp),
+            'kind': 'music_upload',
+            'provider': 'sc',
+            'providerLabel': 'SoundCloud',
+            'actor_name': get_display_name(activity_user),
+            'actor_avatar_url': activity_user.avatar,
+            'actor_color': build_user_color(activity_user),
+            'text': (
+                f"<strong>{get_display_name(activity_user)}</strong> lastet opp ny banger "
+                f"<em>{song.title}</em> til Bangerfabrikken"
+            ),
+            'game': None,
+            'time': format_time_ago(activity.timestamp),
+            'thumb': {
+                'code': ''.join(part[0] for part in song.title.split()[:3]).upper()[:4] or 'SC',
+                'image_url': song.thumbnail_url or song.cover,
+                'bg': 'linear-gradient(135deg,#2d120a,#7c2d12)',
+            },
+        })
+
+    activity_events.sort(key=lambda item: item.get('timestamp') or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    activity_feed = []
+    for item in activity_events[:6]:
+        thumb = item.get('thumb')
+        activity_feed.append({
+            'isNew': True,
+            'avatar': (item.get('actor_name') or 'H')[0].upper(),
+            'avatarUrl': item.get('actor_avatar_url'),
+            'color': item.get('actor_color'),
+            'online': False,
+            'text': item.get('text'),
+            'time': item.get('time') or format_time_ago(item.get('timestamp')),
+            'plat': item.get('provider'),
+            'platLabel': item.get('providerLabel'),
+            'game': item.get('game'),
+            'thumb': {
+                'bg': thumb.get('bg') if thumb else 'linear-gradient(135deg,#0a1628,#1a3a6a)',
+                'code': thumb.get('code') if thumb else '',
+                'imageUrl': thumb.get('image_url') if thumb else None,
+            } if thumb else None,
+        })
+
+    return jsonify({
+        'now_playing': now_playing,
+        'activity_feed': activity_feed,
+    }), 200
+
+
+@app.route('/api/dashboard/recent-achievements', methods=['GET'])
+@jwt_required()
+def get_dashboard_recent_achievements():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    max_items = 4
+    achievement_items = []
+
+    steam_account = ConnectedAccount.query.filter_by(user_id=user.id, provider='steam').first()
+    if steam_account:
+        try:
+            steam_item = fetch_latest_steam_achievement_event(steam_account)
+        except requests.RequestException:
+            steam_item = None
+        if steam_item:
+            thumb = steam_item.get('thumb') or {}
+            achievement_items.append({
+                'id': f"steam-{steam_account.user_id}-{thumb.get('id') or steam_item.get('timestamp').timestamp()}",
+                'title': re.search(r'<em>(.*?)</em>', steam_item.get('text', '')) and re.search(r'<em>(.*?)</em>', steam_item.get('text', '')).group(1) or 'Steam achievement',
+                'game': steam_item.get('game') or 'Steam',
+                'icon': thumb.get('image_url') or thumb.get('logo_url') or '🏆',
+                'is_img': bool(thumb.get('image_url') or thumb.get('logo_url')),
+                'icon_class': 'aig',
+                'platform': 'Steam',
+                'platform_class': 'aps',
+                'timestamp': steam_item.get('timestamp'),
+                'source': 'steam',
+            })
+
+    latest_site_achievements = (
+        db.session.query(UserAchievement, Achievement)
+        .join(Achievement, UserAchievement.achievement_id == Achievement.id)
+        .filter(UserAchievement.user_id == user.id)
+        .order_by(UserAchievement.unlocked_at.desc())
+        .limit(6)
+        .all()
+    )
+
+    for unlock, achievement in latest_site_achievements:
+        achievement_items.append({
+            'id': f"hmn-{achievement.id}",
+            'title': achievement.name,
+            'game': 'HMN Portalen',
+            'icon': achievement.icon or '🔥',
+            'is_img': isinstance(achievement.icon, str) and (achievement.icon.startswith('http') or achievement.icon.startswith('data:')),
+            'icon_class': 'air',
+            'platform': 'HMN',
+            'platform_class': 'aph',
+            'timestamp': to_utc_datetime(unlock.unlocked_at),
+            'source': 'hmn',
+        })
+
+    xbox_account = ConnectedAccount.query.filter_by(user_id=user.id, provider='xbox').first()
+    if xbox_account and is_openxbl_configured():
+        try:
+            xbox_titles = fetch_xbox_title_achievements(xbox_account.provider_account_id)
+        except requests.RequestException:
+            xbox_titles = []
+
+        for title in xbox_titles[:3]:
+            title_id = title.get('title_id')
+            if not title_id:
+                continue
+            try:
+                xbox_achievements = fetch_xbox_achievement_details(
+                    xbox_account.provider_account_id,
+                    title_id,
+                    fallback_title=title.get('title'),
+                )
+            except requests.RequestException:
+                continue
+
+            unlocked_items = [item for item in xbox_achievements if item.get('unlocked')]
+            if not unlocked_items:
+                continue
+
+            unlocked_items.sort(key=lambda entry: entry.get('timestamp') or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+            latest = unlocked_items[0]
+            achievement_items.append({
+                'id': f"xbox-{title_id}-{latest['id']}",
+                'title': latest['title'],
+                'game': latest['game'],
+                'icon': latest['icon'],
+                'is_img': latest['is_img'],
+                'icon_class': latest['icon_class'],
+                'platform': 'Xbox',
+                'platform_class': 'apx',
+                'timestamp': latest.get('timestamp'),
+                'source': 'xbox',
+            })
+
+    deduped = []
+    seen = set()
+    for item in sorted(achievement_items, key=lambda entry: entry.get('timestamp') or datetime.min.replace(tzinfo=timezone.utc), reverse=True):
+        dedupe_key = (item['source'], item['title'], item['game'])
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        deduped.append(item)
+        if len(deduped) >= max_items:
+            break
+
+    return jsonify({
+        'items': [
+            {
+                'id': item['id'],
+                'title': item['title'],
+                'game': item['game'],
+                'icon': item['icon'],
+                'is_img': item['is_img'],
+                'icon_class': item['icon_class'],
+                'platform': item['platform'],
+                'platform_class': item['platform_class'],
+            }
+            for item in deduped
+        ],
+        'disclaimer': 'Eksterne achievements vises bare når Steam/Xbox returnerer dem for nylige spill og profiler vi faktisk har tilgang til.',
+        'rules': {
+            'max_items': max_items,
+            'steam_per_account': 1,
+            'dedupe_by_title_and_game': True,
+            'fills_indefinitely': False,
         }
     }), 200
 
@@ -3119,6 +4027,11 @@ def create_music_track():
         position=next_position,
     )
     db.session.add(new_song)
+    db.session.flush()
+    db.session.add(Activity(
+        user_id=user.id,
+        activity_type=f'music_upload:{new_song.id}'
+    ))
     db.session.commit()
 
     return jsonify({
@@ -3430,6 +4343,11 @@ def add_song():
         Song.query.update({Song.featured: False})
 
     db.session.add(new_song)
+    db.session.flush()
+    db.session.add(Activity(
+        user_id=user.id,
+        activity_type=f'music_upload:{new_song.id}'
+    ))
     db.session.commit()
 
     return jsonify({

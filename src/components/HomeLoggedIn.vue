@@ -1,8 +1,5 @@
-<!-- Design system: /HMN_DESIGN_SYSTEM_v2.md -->
 <template>
   <div class="hli">
-
-    <!-- ── WELCOME BAND ── -->
     <div class="wb">
       <div class="c">
         <div class="wb-inner">
@@ -30,25 +27,21 @@
       </div>
     </div>
 
-    <!-- ── MAIN ── -->
     <div class="main">
       <div class="c">
         <div class="layout">
-
-          <!-- LEFT -->
           <div>
-
-            <!-- NOW PLAYING — TODO: replace static data with gaming API -->
             <div class="mb20">
               <div class="sh"><span class="sh-t">Gjengen <em>spiller nå</em></span><div class="sh-l"></div><span class="sh-a">Se alle profiler →</span></div>
               <div class="np-grid">
+                <div v-if="!nowPlaying.length" class="card empty-txt">Ingen gaming-aktivitet ennå.</div>
                 <div v-for="p in nowPlaying" :key="p.username" class="np-card" :class="{ playing: p.online }">
                   <div class="np-top">
-                    <div class="av av-sm" :style="{ background: p.color }">{{ p.username[0] }}<span class="np-dot" :class="{ on: p.online }"></span></div>
+                    <div class="av av-sm" :style="avatarStyleForEntity(p)">{{ p.username[0] }}<span class="np-dot" :class="{ on: p.online }"></span></div>
                     <span class="np-name">{{ p.username }}</span>
-                    <span class="plat" :class="'fp-' + p.platform">{{ p.platform === 'offline' ? 'Offline' : p.platform }}</span>
+                    <span class="plat" :class="'fp-' + p.platform">{{ p.platformLabel || (p.platform === 'offline' ? 'Offline' : p.platform) }}</span>
                   </div>
-                  <div v-if="p.online" class="np-art" :style="{ background: p.artBg }">{{ p.code }}</div>
+                  <div v-if="p.online" class="np-art" :style="artStyleForItem(p)">{{ p.imageUrl ? '' : p.code }}</div>
                   <div v-else class="np-offline">Sist sett {{ p.lastSeen }}</div>
                   <div class="np-game" :class="{ muted: !p.online }">{{ p.game }}</div>
                   <div class="np-meta">{{ p.meta }}</div>
@@ -56,12 +49,12 @@
               </div>
             </div>
 
-            <!-- ACTIVITY FEED — TODO: replace static data with /activity API -->
             <div class="mb20">
               <div class="sh"><span class="sh-t">Gruppe<em>aktivitet</em></span><div class="sh-l"></div><span class="sh-a">Last mer →</span></div>
               <div class="card">
+                <div v-if="!activityFeed.length" class="empty-txt">Ingen fersk gruppeaktivitet ennå.</div>
                 <div v-for="(item, i) in activityFeed" :key="i" class="fi" :class="{ 'fi-new': item.isNew }">
-                  <div v-if="item.avatar" class="av av-sm" :style="{ background: item.color }">{{ item.avatar }}<span v-if="item.online" class="fi-online"></span></div>
+                  <div v-if="item.avatar" class="av av-sm" :style="avatarStyleForEntity(item)">{{ item.avatar }}<span v-if="item.online" class="fi-online"></span></div>
                   <div v-else class="fi-ico" :class="item.icoClass">{{ item.ico }}</div>
                   <div class="fi-body">
                     <div class="fi-txt" v-html="item.text"></div>
@@ -71,12 +64,11 @@
                       <span v-if="item.game">{{ item.game }}</span>
                     </div>
                   </div>
-                  <div v-if="item.thumb" class="fi-thumb" :style="{ background: item.thumb.bg }">{{ item.thumb.code }}</div>
+                  <div v-if="item.thumb" class="fi-thumb" :style="thumbStyleForItem(item.thumb)">{{ item.thumb.imageUrl ? '' : item.thumb.code }}</div>
                 </div>
               </div>
             </div>
 
-            <!-- GAMING STATS — TODO: replace with /gaming-stats API -->
             <div>
               <div class="sh"><span class="sh-t">Gjengens <em>gaming</em></span><div class="sh-l"></div></div>
               <div class="card gs-grid">
@@ -86,13 +78,9 @@
                 <div class="gs"><div class="gv red">Thomas</div><div class="gl">Skyld-leder</div></div>
               </div>
             </div>
-
           </div>
 
-          <!-- SIDEBAR -->
           <div class="sidebar">
-
-            <!-- LATEST MELDING -->
             <div>
               <div class="sh mb16"><span class="sh-t">Siste <em>melding</em></span><div class="sh-l"></div></div>
               <div class="card">
@@ -112,7 +100,6 @@
               </div>
             </div>
 
-            <!-- KRENKET LEADERBOARD — TODO: replace with /users?sort=krenket API -->
             <div>
               <div class="sh mb16"><span class="sh-t">🔥 Krenket-<em>toppen</em></span><div class="sh-l"></div></div>
               <div class="card">
@@ -126,7 +113,6 @@
               </div>
             </div>
 
-            <!-- EVENTS -->
             <div>
               <div class="sh mb16"><span class="sh-t">Kommende <em>hendelser</em></span><div class="sh-l"></div></div>
               <div class="card">
@@ -138,12 +124,10 @@
                 </router-link>
               </div>
             </div>
-
           </div>
         </div>
       </div>
     </div>
-
   </div>
 </template>
 
@@ -162,31 +146,15 @@ export default {
     dailyClaimed: false,
     countdown: 0,
     _timer: null,
-
-    // TODO: replace with gaming API data (Steam/Xbox/Bnet)
-    nowPlaying: [
-      { username: 'Showzky', online: true,  color: 'linear-gradient(135deg,#c8102e,#7a0e1e)', platform: 'steam',   game: 'Satisfactory',    code: 'SF',  artBg: 'linear-gradient(135deg,#0a1628,#1a3a6a)', meta: '2t 14m denne sesjonen' },
-      { username: 'Thomas',  online: true,  color: 'linear-gradient(135deg,#1a4a7a,#0a2a5a)', platform: 'steam',   game: 'Counter-Strike 2', code: 'CS2', artBg: 'linear-gradient(135deg,#280a0a,#6a1a1a)', meta: '45m denne sesjonen' },
-      { username: 'Whiskey69', online: false, color: 'linear-gradient(135deg,#1a6a3a,#0a3a1a)', platform: 'offline', game: 'Sist spilte: Diablo IV', code: '', artBg: '', meta: '220t totalt', lastSeen: '3t siden' },
-    ],
-
-    // TODO: replace with /activity API
-    activityFeed: [
-      { isNew: true, avatar: 'S', color: 'linear-gradient(135deg,#c8102e,#7a0e1e)', online: true,  text: '<strong>Showzky</strong> låste opp achievement <em>Fully Automated</em>', time: '12 min siden', plat: 'steam', platLabel: 'Steam',      game: 'Satisfactory',    thumb: { bg: 'linear-gradient(135deg,#0a1628,#1a3a6a)', code: 'SF' } },
-      { isNew: true, ico: '📅', icoClass: 'ico-event', text: '<strong>Oliver</strong> opprettet hendelse <em>Olivers Party</em>', time: '2t siden', plat: 'hmn', platLabel: 'HMN' },
-      { isNew: true, avatar: 'W', color: 'linear-gradient(135deg,#1a6a3a,#0a3a1a)', text: '<strong>Whiskey69</strong> lastet opp ny banger <em>ORDER4</em> til Bangerfabrikken', time: '3t siden', plat: 'sc', platLabel: 'SoundCloud' },
-      { avatar: 'T', color: 'linear-gradient(135deg,#1a4a7a,#0a2a5a)', text: '<strong>Thomas</strong> fikk skylda for <em>deployment-feilen</em> · § 2.1', time: 'i går', plat: 'hmn', platLabel: 'Automatisk' },
-      { avatar: 'O', color: 'linear-gradient(135deg,#4a1a7a,#2a0a5a)', online: true, text: '<strong>Oliver</strong> låste opp achievement <em>Unbreakable</em>', time: 'i går', plat: 'xbox', platLabel: 'Xbox', game: 'Halo Wars 2', thumb: { bg: 'linear-gradient(135deg,#0a1a0a,#1a5a1a)', code: 'HW2' } },
-    ],
-
-    // TODO: replace with /users?sort=krenket API
+    nowPlaying: [],
+    activityFeed: [],
     leaderboard: [
-      { name: 'Thomas',    rank: 'Junior',     pct: 78, color: 'linear-gradient(135deg,#1a4a7a,#0a2a5a)' },
-      { name: 'Andre',     rank: 'Pasient',    pct: 61, color: 'linear-gradient(135deg,#1a3a5a,#0a1a3a)' },
-      { name: 'Showzky',   rank: 'Developer',  pct: 55, color: 'linear-gradient(135deg,#c8102e,#7a0e1e)' },
-      { name: 'Oliver',    rank: 'Spesialist', pct: 42, color: 'linear-gradient(135deg,#4a1a7a,#2a0a5a)' },
-      { name: 'Whiskey69', rank: 'Producer',   pct: 30, color: 'linear-gradient(135deg,#1a6a3a,#0a3a1a)' },
-      { name: 'Håkon',     rank: 'Tekniker',   pct: 18, color: 'linear-gradient(135deg,#5a5a1a,#3a3a0a)' },
+      { name: 'Thomas', rank: 'Junior', pct: 78, color: 'linear-gradient(135deg,#1a4a7a,#0a2a5a)' },
+      { name: 'Andre', rank: 'Pasient', pct: 61, color: 'linear-gradient(135deg,#1a3a5a,#0a1a3a)' },
+      { name: 'Showzky', rank: 'Developer', pct: 55, color: 'linear-gradient(135deg,#c8102e,#7a0e1e)' },
+      { name: 'Oliver', rank: 'Spesialist', pct: 42, color: 'linear-gradient(135deg,#4a1a7a,#2a0a5a)' },
+      { name: 'Whiskey69', rank: 'Producer', pct: 30, color: 'linear-gradient(135deg,#1a6a3a,#0a3a1a)' },
+      { name: 'Håkon', rank: 'Tekniker', pct: 18, color: 'linear-gradient(135deg,#5a5a1a,#3a3a0a)' },
     ],
   }),
 
@@ -194,7 +162,7 @@ export default {
     userInitial() { return (this.user?.username || 'H')[0].toUpperCase(); },
     topRole() {
       const roles = (this.user?.roles || []).map(r => r.name?.toLowerCase());
-      for (const r of ['superadmin','admin','developer','staff','moderator','producer']) {
+      for (const r of ['superadmin', 'admin', 'developer', 'staff', 'moderator', 'producer']) {
         if (roles.includes(r)) return r.charAt(0).toUpperCase() + r.slice(1);
       }
       return this.user?.roles?.[0]?.name || 'Pasient';
@@ -211,7 +179,13 @@ export default {
     authH() { return { Authorization: `Bearer ${this.user?.token}` }; },
 
     async fetchAll() {
-      await Promise.all([this.fetchEvents(), this.fetchMelding(), this.fetchFittePoints(), this.fetchDailyStatus()]);
+      await Promise.all([
+        this.fetchEvents(),
+        this.fetchMelding(),
+        this.fetchFittePoints(),
+        this.fetchDailyStatus(),
+        this.fetchHomeSummary(),
+      ]);
     },
 
     async fetchEvents() {
@@ -220,9 +194,18 @@ export default {
         const list = data.events || data || [];
         this.events = list.slice(0, 3).map(e => {
           const d = new Date(e.event_date || e.date);
-          return { id: e.id, name: e.event_name || e.name, day: d.getDate(), month: d.toLocaleString('nb-NO', { month: 'short' }), time: (e.event_time || e.time || '').slice(0, 5), rsvp: e.rsvp || false };
+          return {
+            id: e.id,
+            name: e.event_name || e.name,
+            day: d.getDate(),
+            month: d.toLocaleString('nb-NO', { month: 'short' }),
+            time: (e.event_time || e.time || '').slice(0, 5),
+            rsvp: e.rsvp || false,
+          };
         });
-      } catch { this.events = []; }
+      } catch {
+        this.events = [];
+      }
     },
 
     async fetchMelding() {
@@ -230,14 +213,18 @@ export default {
         const { data } = await axios.get('/bedriftsmeldinger');
         const items = Array.isArray(data) ? data : [];
         this.latestMelding = items.find(m => m.pinned) || items[0] || null;
-      } catch { this.latestMelding = null; }
+      } catch {
+        this.latestMelding = null;
+      }
     },
 
     async fetchFittePoints() {
       try {
         const { data } = await axios.get('get-fitte-points', { headers: this.authH() });
         this.fittePoints = data.points ?? 0;
-      } catch { this.fittePoints = this.user?.fittePoints || 0; }
+      } catch {
+        this.fittePoints = this.user?.fittePoints || 0;
+      }
     },
 
     async fetchDailyStatus() {
@@ -246,47 +233,111 @@ export default {
         this.dailyClaimed = data.dailyClaimed;
         if (data.dailyClaimed && data.nextClaimTime) {
           const diff = Math.floor((new Date(data.nextClaimTime) - Date.now()) / 1000);
-          if (diff > 0) { this.countdown = diff; this.startCountdown(); }
+          if (diff > 0) {
+            this.countdown = diff;
+            this.startCountdown();
+          }
         }
       } catch {}
+    },
+
+    async fetchHomeSummary() {
+      try {
+        const { data } = await axios.get('home/social-summary', { headers: this.authH() });
+        this.nowPlaying = Array.isArray(data.now_playing) ? data.now_playing : [];
+        this.activityFeed = Array.isArray(data.activity_feed) ? data.activity_feed : [];
+      } catch (error) {
+        console.error('Failed to fetch home social summary:', error);
+        this.nowPlaying = [];
+        this.activityFeed = [];
+      }
     },
 
     async claimDaily() {
       if (this.dailyClaimed) return;
       try {
-        const { data } = await axios.post('update-fitte-points', { points: this.currentPoints + 50, is_daily_reward: true }, { headers: this.authH() });
+        const { data } = await axios.post(
+          'update-fitte-points',
+          { points: this.currentPoints + 50, is_daily_reward: true },
+          { headers: this.authH() }
+        );
         this.fittePoints = data.points ?? this.fittePoints;
         this.dailyClaimed = true;
         if (data.nextClaimTime) {
           const diff = Math.floor((new Date(data.nextClaimTime) - Date.now()) / 1000);
-          if (diff > 0) { this.countdown = diff; this.startCountdown(); }
+          if (diff > 0) {
+            this.countdown = diff;
+            this.startCountdown();
+          }
         }
-      } catch (e) { console.error('Claim failed:', e); }
+      } catch (e) {
+        console.error('Claim failed:', e);
+      }
     },
 
     startCountdown() {
       clearInterval(this._timer);
       this._timer = setInterval(() => {
         if (this.countdown > 0) this.countdown--;
-        else { clearInterval(this._timer); this.dailyClaimed = false; }
+        else {
+          clearInterval(this._timer);
+          this.dailyClaimed = false;
+        }
       }, 1000);
     },
 
     formatTime(s) {
-      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
       return h ? `${h}t ${m}m` : m ? `${m}m ${sec}s` : `${sec}s`;
+    },
+
+    avatarStyleForEntity(entity) {
+      if (entity?.avatarUrl) {
+        return {
+          backgroundImage: `url(${entity.avatarUrl})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        };
+      }
+      return { background: entity?.color || 'linear-gradient(135deg,var(--red),#7a0e1e)' };
+    },
+
+    artStyleForItem(item) {
+      if (item?.imageUrl) {
+        return {
+          backgroundImage: `linear-gradient(rgba(8,12,18,0.18), rgba(8,12,18,0.18)), url(${item.imageUrl})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        };
+      }
+      return { background: item?.artBg || 'linear-gradient(135deg,#0a1628,#1a3a6a)' };
+    },
+
+    thumbStyleForItem(thumb) {
+      if (thumb?.imageUrl) {
+        return {
+          backgroundImage: `linear-gradient(rgba(8,12,18,0.12), rgba(8,12,18,0.12)), url(${thumb.imageUrl})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        };
+      }
+      return { background: thumb?.bg || 'linear-gradient(135deg,#0a1628,#1a3a6a)' };
     },
 
     stripHtml(html) {
       if (!html) return '';
-      const d = document.createElement('div'); d.innerHTML = html;
+      const d = document.createElement('div');
+      d.innerHTML = html;
       const txt = d.textContent || '';
-      return txt.length > 110 ? txt.slice(0, 110) + '…' : txt;
+      return txt.length > 110 ? `${txt.slice(0, 110)}…` : txt;
     },
 
     tagClass(cat) {
       return { oppdatering: 'tag-green', kaos: 'tag-red', hendelse: 'tag-cyan', viktig: 'tag-gold', 'thomas-relatert': 'tag-purple' }[cat] || 'tag-cyan';
     },
+
     categoryLabel(cat) {
       return { oppdatering: 'Oppdatering', kaos: 'Kaos', hendelse: 'Hendelse', viktig: 'Viktig', 'thomas-relatert': 'Thomas' }[cat] || cat;
     },
@@ -294,13 +345,24 @@ export default {
 
   mounted() {
     this.fetchAll();
-    const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', { path: '/socket.io', transports: ['websocket', 'polling'], reconnectionAttempts: 5 });
+    const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+    });
     socket.on('connect', () => { if (this.user?.id) socket.emit('setUserId', this.user.id); });
-    socket.on('daily_reward_claimed', (d) => {
-      if (d.user_id === this.user?.id) { this.dailyClaimed = true; this.countdown = d.cooldown || 86400; this.startCountdown(); }
+    socket.on('daily_reward_claimed', d => {
+      if (d.user_id === this.user?.id) {
+        this.dailyClaimed = true;
+        this.countdown = d.cooldown || 86400;
+        this.startCountdown();
+      }
     });
   },
-  beforeUnmount() { clearInterval(this._timer); },
+
+  beforeUnmount() {
+    clearInterval(this._timer);
+  },
 };
 </script>
 
@@ -308,7 +370,6 @@ export default {
 .hli { min-height: 100vh; }
 .c { width: min(calc(100% - 2.5rem), 1200px); margin: 0 auto; }
 
-/* ── Welcome band ── */
 .wb { background: linear-gradient(135deg, rgba(200,16,46,0.07), rgba(0,184,208,0.04)); border-bottom: 1px solid var(--border); padding: 18px 0; }
 .wb-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
 .wb-left { display: flex; align-items: center; gap: 14px; }
@@ -318,11 +379,12 @@ export default {
 .wb-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .wstat { text-align: center; }
 .wv { font-family: var(--font-display); font-size: 20px; font-weight: 900; line-height: 1; }
-.wv.cyan { color: var(--cyan); } .wv.gold { color: var(--gold); } .wv.red { color: var(--red2); }
+.wv.cyan { color: var(--cyan); }
+.wv.gold { color: var(--gold); }
+.wv.red { color: var(--red2); }
 .wl { font-size: 10px; color: var(--text-muted); letter-spacing: 0.07em; margin-top: 2px; font-family: var(--font-display); text-transform: uppercase; }
 .ws { width: 1px; height: 32px; background: var(--border); }
 
-/* ── Daily reward btn ── */
 .dr-btn { display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: rgba(216,152,32,0.08); border: 1px solid rgba(216,152,32,0.22); border-radius: 8px; cursor: pointer; transition: all 0.18s; color: inherit; }
 .dr-btn:hover:not(:disabled) { background: rgba(216,152,32,0.15); }
 .dr-btn.claimed { opacity: 0.6; cursor: default; }
@@ -330,19 +392,17 @@ export default {
 .dr-sub { font-size: 10px; color: rgba(216,152,32,0.6); display: block; margin-top: 1px; }
 .dr-pill { background: var(--gold); color: #080c12; font-size: 11px; font-weight: 700; font-family: var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 12px; border-radius: 5px; border: none; cursor: pointer; }
 
-/* ── Avatars ── */
 .av { border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 900; color: white; flex-shrink: 0; position: relative; }
 .av-lg { width: 44px; height: 44px; font-size: 16px; border: 2px solid rgba(200,16,46,0.35); }
 .av-sm { width: 34px; height: 34px; font-size: 13px; }
 .av-xs { width: 30px; height: 30px; font-size: 12px; }
 
-/* ── Layout ── */
 .main { padding: 24px 0 64px; }
 .layout { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
 .sidebar { display: flex; flex-direction: column; gap: 20px; }
-.mb16 { margin-bottom: 16px; } .mb20 { margin-bottom: 20px; }
+.mb16 { margin-bottom: 16px; }
+.mb20 { margin-bottom: 20px; }
 
-/* ── Section header ── */
 .sh { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
 .sh-t { font-family: var(--font-display); font-size: 16px; font-weight: 800; color: var(--text-bright); letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
 .sh-t em { color: var(--cyan); font-style: normal; }
@@ -350,10 +410,8 @@ export default {
 .sh-a { font-size: 11px; color: var(--cyan); cursor: pointer; font-family: var(--font-body); white-space: nowrap; }
 .sh-a:hover { text-decoration: underline; }
 
-/* ── Card ── */
 .card { background: rgba(255,255,255,0.025); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 
-/* ── Now playing ── */
 .np-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 .np-card { background: rgba(255,255,255,0.025); border: 1px solid var(--border); border-radius: 9px; padding: 12px; transition: all 0.18s; }
 .np-card.playing { border-color: rgba(40,184,96,0.2); }
@@ -367,16 +425,14 @@ export default {
 .np-game.muted { color: var(--text-muted); }
 .np-meta { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
 
-/* ── Platform badges ── */
 .plat { font-size: 9px; padding: 2px 6px; border-radius: 3px; font-family: var(--font-display); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; flex-shrink: 0; }
-.fp-steam   { background: rgba(27,159,212,0.12);  color: #4ab8e8; }
-.fp-xbox    { background: rgba(16,124,16,0.12);   color: #4ec84e; }
-.fp-hmn     { background: rgba(200,16,46,0.12);   color: var(--red2); }
-.fp-sc      { background: rgba(255,85,0,0.12);    color: #ff6633; }
-.fp-bnet    { background: rgba(20,142,255,0.12);  color: #60aeff; }
+.fp-steam { background: rgba(27,159,212,0.12); color: #4ab8e8; }
+.fp-xbox { background: rgba(16,124,16,0.12); color: #4ec84e; }
+.fp-hmn { background: rgba(200,16,46,0.12); color: var(--red2); }
+.fp-sc { background: rgba(255,85,0,0.12); color: #ff6633; }
+.fp-bnet { background: rgba(20,142,255,0.12); color: #60aeff; }
 .fp-offline { background: rgba(255,255,255,0.05); color: var(--text-muted); }
 
-/* ── Activity feed ── */
 .fi { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); transition: background 0.15s; position: relative; }
 .fi:last-child { border-bottom: none; }
 .fi:hover { background: rgba(255,255,255,0.02); }
@@ -384,7 +440,7 @@ export default {
 .fi-online { position: absolute; bottom: 0; right: 0; width: 9px; height: 9px; background: var(--green); border-radius: 50%; border: 1.5px solid var(--bg); box-shadow: 0 0 5px var(--green); }
 .fi-ico { width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; }
 .ico-event { background: rgba(0,184,208,0.1); border: 1px solid rgba(0,184,208,0.2); }
-.ico-ach   { background: rgba(216,152,32,0.12); border: 1px solid rgba(216,152,32,0.2); }
+.ico-ach { background: rgba(216,152,32,0.12); border: 1px solid rgba(216,152,32,0.2); }
 .fi-body { flex: 1; min-width: 0; }
 .fi-txt { font-size: 13px; color: var(--text); font-family: var(--font-body); line-height: 1.55; }
 .fi-txt :deep(strong) { color: var(--text-bright); font-weight: 500; }
@@ -392,60 +448,60 @@ export default {
 .fi-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .fi-thumb { width: 48px; height: 32px; border-radius: 5px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); font-weight: 800; color: rgba(255,255,255,0.3); }
 
-/* ── Gaming stats grid ── */
 .gs-grid { display: grid; grid-template-columns: 1fr 1fr; }
 .gs { padding: 14px; border-bottom: 1px solid var(--border); }
 .gs:nth-child(odd) { border-right: 1px solid var(--border); }
 .gs:nth-last-child(-n+2) { border-bottom: none; }
 .gv { font-family: var(--font-display); font-size: 20px; font-weight: 900; color: var(--text-bright); line-height: 1; }
-.gv.cyan { color: var(--cyan); } .gv.gold { color: var(--gold); } .gv.green { color: var(--green); } .gv.red { color: var(--red2); }
+.gv.cyan { color: var(--cyan); }
+.gv.gold { color: var(--gold); }
+.gv.green { color: var(--green); }
+.gv.red { color: var(--red2); }
 .gl { font-size: 10px; color: var(--text-muted); margin-top: 3px; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.07em; }
 
-/* ── Melding preview ── */
 .mp { padding: 14px 16px; }
 .mp-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .mp-tag { display: inline-block; font-size: 9px; padding: 2px 7px; border-radius: 3px; font-weight: 700; letter-spacing: 0.07em; font-family: var(--font-display); text-transform: uppercase; }
-.tag-green  { background: rgba(40,184,96,0.1);  color: var(--green); border: 1px solid rgba(40,184,96,0.2); }
-.tag-red    { background: rgba(200,16,46,0.12); color: var(--red2);  border: 1px solid rgba(200,16,46,0.22); }
-.tag-cyan   { background: rgba(0,184,208,0.1);  color: var(--cyan);  border: 1px solid rgba(0,184,208,0.2); }
-.tag-gold   { background: rgba(216,152,32,0.1); color: var(--gold);  border: 1px solid rgba(216,152,32,0.2); }
-.tag-purple { background: rgba(112,80,216,0.1); color: #9070f0;      border: 1px solid rgba(112,80,216,0.22); }
-.mp-ref   { font-size: 10px; color: var(--text-muted); font-family: var(--font-display); }
+.tag-green { background: rgba(40,184,96,0.1); color: var(--green); border: 1px solid rgba(40,184,96,0.2); }
+.tag-red { background: rgba(200,16,46,0.12); color: var(--red2); border: 1px solid rgba(200,16,46,0.22); }
+.tag-cyan { background: rgba(0,184,208,0.1); color: var(--cyan); border: 1px solid rgba(0,184,208,0.2); }
+.tag-gold { background: rgba(216,152,32,0.1); color: var(--gold); border: 1px solid rgba(216,152,32,0.2); }
+.tag-purple { background: rgba(112,80,216,0.1); color: #9070f0; border: 1px solid rgba(112,80,216,0.22); }
+.mp-ref { font-size: 10px; color: var(--text-muted); font-family: var(--font-display); }
 .mp-title { font-size: 15px; font-weight: 600; color: var(--text-bright); font-family: var(--font-body); margin-bottom: 5px; }
-.mp-body  { font-size: 12px; color: rgba(255,255,255,0.35); font-family: var(--font-body); line-height: 1.6; margin-bottom: 12px; }
-.mp-foot  { display: flex; gap: 8px; }
+.mp-body { font-size: 12px; color: rgba(255,255,255,0.35); font-family: var(--font-body); line-height: 1.6; margin-bottom: 12px; }
+.mp-foot { display: flex; gap: 8px; }
 
-/* ── Buttons ── */
 .btn { display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; font-family: var(--font-body); cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; }
 .btn:hover { transform: translateY(-1px); }
 .btn-red { background: linear-gradient(145deg, var(--red), #8a0e1e); color: white; }
 .btn-ghost { background: rgba(255,255,255,0.04); border: 1px solid var(--border2); color: var(--text); }
 .btn-ghost:hover { background: rgba(255,255,255,0.08); }
 
-/* ── Leaderboard ── */
 .lb-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
 .lb-row:last-child { border-bottom: none; }
 .lb-pos { width: 22px; font-family: var(--font-display); font-size: 15px; font-weight: 900; color: var(--text-muted); text-align: center; flex-shrink: 0; }
-.lb-pos.p1 { color: var(--gold); } .lb-pos.p2 { color: rgba(192,192,192,0.8); } .lb-pos.p3 { color: rgba(180,100,40,0.8); }
+.lb-pos.p1 { color: var(--gold); }
+.lb-pos.p2 { color: rgba(192,192,192,0.8); }
+.lb-pos.p3 { color: rgba(180,100,40,0.8); }
 .lb-info { flex: 1; min-width: 0; }
 .lb-name { font-size: 13px; color: var(--text); font-family: var(--font-body); font-weight: 500; }
-.lb-sub  { font-size: 10px; color: var(--text-muted); }
-.lb-bar  { flex: 0 0 56px; }
+.lb-sub { font-size: 10px; color: var(--text-muted); }
+.lb-bar { flex: 0 0 56px; }
 .lb-track { background: rgba(255,255,255,0.06); height: 3px; border-radius: 2px; overflow: hidden; margin-top: 4px; }
-.lb-fill  { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--red), var(--red2)); }
-.lb-val   { font-family: var(--font-display); font-size: 15px; font-weight: 800; color: var(--red2); }
+.lb-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--red), var(--red2)); }
+.lb-val { font-family: var(--font-display); font-size: 15px; font-weight: 800; color: var(--red2); }
 
-/* ── Events ── */
 .ev-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); transition: background 0.15s; text-decoration: none; }
 .ev-row:last-child { border-bottom: none; }
 .ev-row:hover { background: rgba(255,255,255,0.025); }
 .ev-badge { width: 36px; height: 36px; border-radius: 7px; background: rgba(0,184,208,0.1); border: 1px solid rgba(0,184,208,0.2); display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; }
-.ev-day   { font-family: var(--font-display); font-size: 15px; font-weight: 900; color: var(--cyan); line-height: 1; }
+.ev-day { font-family: var(--font-display); font-size: 15px; font-weight: 900; color: var(--cyan); line-height: 1; }
 .ev-month { font-size: 8px; color: var(--cyan); opacity: 0.7; letter-spacing: 0.06em; text-transform: uppercase; font-family: var(--font-display); }
-.ev-info  { flex: 1; min-width: 0; }
-.ev-name  { font-size: 13px; color: var(--text-bright); font-family: var(--font-body); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ev-time  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-.ev-rsvp  { font-size: 11px; padding: 4px 10px; border-radius: 5px; background: rgba(0,184,208,0.1); color: var(--cyan); border: 1px solid rgba(0,184,208,0.2); font-family: var(--font-display); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
+.ev-info { flex: 1; min-width: 0; }
+.ev-name { font-size: 13px; color: var(--text-bright); font-family: var(--font-body); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-time { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.ev-rsvp { font-size: 11px; padding: 4px 10px; border-radius: 5px; background: rgba(0,184,208,0.1); color: var(--cyan); border: 1px solid rgba(0,184,208,0.2); font-family: var(--font-display); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
 .ev-rsvp:hover { background: rgba(0,184,208,0.2); }
 .ev-rsvp.confirmed { background: rgba(40,184,96,0.1); color: var(--green); border-color: rgba(40,184,96,0.2); }
 
@@ -455,6 +511,7 @@ export default {
   .layout { grid-template-columns: 1fr; }
   .np-grid { grid-template-columns: 1fr 1fr; }
 }
+
 @media (max-width: 600px) {
   .np-grid { grid-template-columns: 1fr; }
   .wb-right { display: none; }

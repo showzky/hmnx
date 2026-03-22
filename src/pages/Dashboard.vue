@@ -187,6 +187,7 @@
 
               <div class="mc">
                 <div class="mc-head"><span class="mc-title">Siste achievements</span><span class="mc-meta">nylig låst opp</span></div>
+                <div v-if="recentAchievementsDisclaimer" class="mc-note">{{ recentAchievementsDisclaimer }}</div>
                 <div class="ach-grid">
                   <div v-for="achievement in recentAchievements" :key="achievement.id" class="ai">
                     <div class="ai-icon" :class="achievement.iconClass">
@@ -317,7 +318,11 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
-import { disconnectConnection, fetchConnections, fetchSteamConnectUrl } from '@/services/connectionService'
+import {
+  disconnectConnection,
+  fetchConnections,
+  fetchSteamConnectUrl,
+} from '@/services/connectionService'
 import RankCard from '@/components/RankCard.vue'
 import AchievementPanel from '@/components/AchievementPanel.vue'
 
@@ -390,6 +395,7 @@ const connectionActionProvider = ref('')
 const connectionStatus = ref('')
 const connectionStatusType = ref('status-muted')
 const gamingSummary = ref(null)
+const recentAchievementsSummary = ref(null)
 
 const user = computed(() => auth.user)
 const displayName = computed(() => user.value?.username || user.value?.email || 'Bruker')
@@ -446,6 +452,19 @@ const connections = computed(() => [
 const recentGames = computed(() => recentGamesDynamic.value)
 const allGames = computed(() => allGamesDynamic.value)
 const recentAchievements = computed(() => {
+  const items = Array.isArray(recentAchievementsSummary.value?.items) ? recentAchievementsSummary.value.items : []
+  if (items.length) {
+    return items.map(item => ({
+      id: item.id,
+      title: item.title,
+      game: item.game,
+      icon: item.icon,
+      isImg: Boolean(item.is_img),
+      iconClass: item.icon_class || 'air',
+      platform: item.platform,
+      platformClass: item.platform_class || 'aph',
+    }))
+  }
   if (!achievements.value.length) return fallbackAchievements
   return achievements.value
     .filter(item => item.achieved !== false)
@@ -465,6 +484,7 @@ const recentAchievements = computed(() => {
       }
     })
 })
+const recentAchievementsDisclaimer = computed(() => recentAchievementsSummary.value?.disclaimer || '')
 
 const recentActivity = computed(() => recentActivityApi.value.length ? recentActivityApi.value.slice(0, 5) : fallbackActivity)
 const fullActivity = computed(() => recentActivityApi.value.length ? [...recentActivityApi.value, ...fallbackActivity].slice(0, 8) : fallbackActivity)
@@ -485,7 +505,7 @@ const resolvedConnections = computed(() => {
   if (!connectionsData.value.length) {
     return [
       { provider: 'steam', connected: false, subtitle: 'Ikke tilkoblet', ...connectionMeta.steam, userText: 'Ikke tilkoblet', actionable: true },
-      { provider: 'xbox', connected: false, subtitle: 'Kommer senere', ...connectionMeta.xbox, userText: 'Kommer senere', actionable: false },
+      { provider: 'xbox', connected: false, subtitle: 'Krever ekte Xbox-app', ...connectionMeta.xbox, userText: 'Krever ekte Xbox-app', actionable: false },
       { provider: 'battlenet', connected: false, subtitle: 'Kommer senere', ...connectionMeta.battlenet, userText: 'Kommer senere', actionable: false },
       {
         provider: 'discord',
@@ -508,7 +528,9 @@ const resolvedConnections = computed(() => {
       userText: connection.connected
         ? [connection.displayName, connection.subtitle].filter(Boolean).join(' · ')
         : (connection.subtitle || 'Ikke tilkoblet'),
-      actionable: meta.actionable && (connection.connected || connection.provider === 'steam'),
+      actionable: connection.connected
+        ? ['steam', 'xbox'].includes(connection.provider)
+        : (meta.actionable && connection.provider === 'steam'),
     }
   })
 })
@@ -528,7 +550,7 @@ const dynamicGamingPlatforms = computed(() => [
     id: 2,
     name: 'Xbox',
     abbr: 'X',
-    meta: 'Kommer senere',
+    meta: resolvedConnections.value.find(item => item.provider === 'xbox')?.userText || 'Ikke tilkoblet',
     iconClass: 'ci-x',
     panelClass: 'platform-xbox'
   },
@@ -734,6 +756,16 @@ async function fetchAchievements() {
   }
 }
 
+async function fetchRecentAchievementsSummary() {
+  try {
+    const { data } = await axios.get('/dashboard/recent-achievements')
+    recentAchievementsSummary.value = data
+  } catch (error) {
+    console.error('Error fetching recent achievements summary:', error)
+    recentAchievementsSummary.value = null
+  }
+}
+
 function mapActivityDot(text) {
   const lower = text.toLowerCase()
   if (lower.includes('joined') || lower.includes('velkommen')) return 'ad-g'
@@ -793,19 +825,13 @@ async function fetchGamingSummary() {
 async function handleConnectionAction(connection) {
   if (!connection?.actionable || connectionActionProvider.value) return
 
-  if (connection.provider !== 'steam') {
-    connectionStatusType.value = 'status-muted'
-    connectionStatus.value = `${connection.name} kommer etter Steam-integrasjonen.`
-    return
-  }
-
   try {
     connectionActionProvider.value = connection.provider
 
     if (connection.connected) {
       await disconnectConnection(connection.provider)
       connectionStatusType.value = 'status-success'
-      connectionStatus.value = 'Steam ble koblet fra.'
+      connectionStatus.value = `${connection.name} ble koblet fra.`
       await fetchConnectionData()
       await fetchGamingSummary()
       return
@@ -818,7 +844,7 @@ async function handleConnectionAction(connection) {
     }
 
     connectionStatusType.value = 'status-error'
-    connectionStatus.value = 'Kunne ikke starte Steam-koblingen.'
+    connectionStatus.value = `Kunne ikke starte ${connection.name}-koblingen.`
   } catch (error) {
     console.error('Connection action failed:', error)
     connectionStatusType.value = 'status-error'
@@ -881,9 +907,15 @@ onMounted(async () => {
     connectionStatusType.value = 'status-success'
     connectionStatus.value = 'Steam-konto koblet til.'
     shouldClearConnectionQuery = true
+  } else if (route.query.linked === 'xbox') {
+    connectionStatusType.value = 'status-success'
+    connectionStatus.value = 'Xbox-konto koblet til.'
+    shouldClearConnectionQuery = true
   } else if (route.query.connection_error) {
     connectionStatusType.value = 'status-error'
-    connectionStatus.value = 'Steam-koblingen feilet. Prøv igjen.'
+    connectionStatus.value = route.query.connection_error.toString().startsWith('xbox_')
+      ? 'Xbox-koblingen feilet. Prøv igjen.'
+      : 'Steam-koblingen feilet. Prøv igjen.'
     shouldClearConnectionQuery = true
   }
   if (shouldClearConnectionQuery) {
@@ -894,6 +926,7 @@ onMounted(async () => {
     fetchWeeklyActivity(),
     fetchKrenkeLevel(),
     fetchAchievements(),
+    fetchRecentAchievementsSummary(),
     fetchRecentActivity(),
     fetchConnectionData(),
     fetchGamingSummary(),
@@ -1568,6 +1601,13 @@ onBeforeUnmount(() => {
 .mc-meta {
   font-size: 11px;
   color: var(--muted);
+}
+
+.mc-note {
+  padding: 10px 18px 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .np-strip {
