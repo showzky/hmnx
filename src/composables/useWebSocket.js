@@ -1,7 +1,25 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { io } from 'socket.io-client';
 
-export function useWebSocket(url = import.meta.env.VITE_SOCKET_URL) {
+function getApiBaseUrl() {
+  return (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+}
+
+function getSocketBaseUrl() {
+  const explicitSocketUrl = (import.meta.env.VITE_SOCKET_URL || '').replace(/\/$/, '');
+  if (explicitSocketUrl) {
+    return explicitSocketUrl;
+  }
+
+  const apiBaseUrl = getApiBaseUrl();
+  if (apiBaseUrl.endsWith('/api')) {
+    return apiBaseUrl.slice(0, -4);
+  }
+
+  return apiBaseUrl;
+}
+
+export function useWebSocket(url = getSocketBaseUrl()) {
   const socket = ref(null);
   const isConnected = ref(false);
   const defaultMessage = 'System maintenance in progress. Please try again later.';
@@ -17,7 +35,7 @@ export function useWebSocket(url = import.meta.env.VITE_SOCKET_URL) {
   const fetchMaintenanceStatus = async () => {
     try {
       console.log('🔍 Fetching initial maintenance status...');
-      const response = await fetch('/api/notice-maintenance');
+      const response = await fetch(`${getApiBaseUrl()}/notice-maintenance`);
       const data = await response.json();
       console.log('📥 Received initial maintenance data:', data);
       updateMaintenanceStatus(data);

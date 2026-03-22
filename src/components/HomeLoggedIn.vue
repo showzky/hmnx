@@ -345,7 +345,9 @@ export default {
 
   mounted() {
     this.fetchAll();
-    const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+    const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+    const socketBase = (import.meta.env.VITE_SOCKET_URL || '').replace(/\/$/, '') || (apiBase.endsWith('/api') ? apiBase.slice(0, -4) : apiBase) || 'http://localhost:5000';
+    const socket = io(socketBase, {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
