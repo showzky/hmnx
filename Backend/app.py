@@ -1,8 +1,8 @@
 # -------------------------
 # Import Libraries and Modules
 # -------------------------
-#import eventlet
-#eventlet.monkey_patch()
+import eventlet
+eventlet.monkey_patch()
 
 from dotenv import load_dotenv
 import os
@@ -190,6 +190,11 @@ def send_email_async_thread(msg):
         logger.exception("Exception in background thread email sending:")
 
 
+@app.route('/health')
+def health():
+    return jsonify({"status": "ok"}), 200
+
+
 @app.route('/api/test-email')
 def test_email():
     msg = Message(
@@ -241,6 +246,30 @@ migrate = Migrate(app, db)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 app.register_blueprint(soundcloud_bp)
+
+
+@jwt.token_in_blocklist_loader
+def is_token_revoked(jwt_header, jwt_payload):
+    identity = jwt_payload.get('sub')
+    if not identity:
+        return False
+
+    revoked_after_raw = get_user_setting(identity, 'session_revoked_after')
+    if not revoked_after_raw:
+        return False
+
+    try:
+        revoked_after = datetime.fromisoformat(revoked_after_raw.replace('Z', '+00:00'))
+    except ValueError:
+        return False
+
+    token_iat = jwt_payload.get('iat')
+    if token_iat is None:
+        return False
+
+    token_issued_at = datetime.fromtimestamp(token_iat, tz=timezone.utc)
+    revoked_after_utc = to_utc_datetime(revoked_after)
+    return bool(revoked_after_utc and token_issued_at <= revoked_after_utc)
 
 
 import os
@@ -466,13 +495,46 @@ def get_setting(key, default=None):
     setting = Setting.query.filter_by(key=key).first()
     return setting.value if setting else default
 
+
 def set_setting(key, value):
     setting = Setting.query.filter_by(key=key).first()
-    if setting:
-        setting.value = value
-    else:
-        setting = Setting(key=key, value=value)
+    if not setting:
+        setting = Setting(key=key)
         db.session.add(setting)
+    setting.value = value
+    return setting
+
+
+def get_user_setting_key(user_id, suffix):
+    return f"user:{user_id}:{suffix}"
+
+
+def get_user_setting(user_id, suffix, default=None):
+    return get_setting(get_user_setting_key(user_id, suffix), default)
+
+
+def set_user_setting(user_id, suffix, value):
+    return set_setting(get_user_setting_key(user_id, suffix), value)
+
+
+def get_user_setting_json(user_id, suffix, default=None):
+    raw_value = get_user_setting(user_id, suffix)
+    if not raw_value:
+        return default
+    try:
+        return json.loads(raw_value)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return default
+
+
+def set_user_setting_json(user_id, suffix, payload):
+    set_user_setting(user_id, suffix, json.dumps(payload, separators=(',', ':')))
+
+
+def get_user_display_name(user):
+    if not user:
+        return None
+    return get_user_setting(user.id, 'display_name', user.username or user.email)
 
 
 def get_authenticated_user():
@@ -905,6 +967,103 @@ def build_connection_payload(user):
                 "providerAccountId": user.discord_id,
                 "canDisconnect": False,
             }
+        ]
+    }
+
+
+def build_connection_payload(user):
+    connected_accounts = {account.provider.lower(): account for account in user.connected_accounts}
+    discord_suffix = str(user.discord_id)[-4:] if user.discord_id else 'link'
+    steam_account = connected_accounts.get('steam')
+    xbox_account = connected_accounts.get('xbox')
+    battlenet_account = connected_accounts.get('battlenet')
+    cod_account = connected_accounts.get('cod')
+    epic_account = connected_accounts.get('epic')
+
+    return {
+        "connections": [
+            {
+                "provider": "steam",
+                "connected": steam_account is not None,
+                "displayName": steam_account.display_name if steam_account else None,
+                "subtitle": "Steam-konto tilkoblet" if steam_account else "Ikke tilkoblet",
+                "avatarUrl": steam_account.avatar_url if steam_account else None,
+                "avatarText": "S",
+                "providerAccountId": steam_account.provider_account_id if steam_account else None,
+                "canDisconnect": steam_account is not None,
+            },
+            {
+                "provider": "xbox",
+                "connected": xbox_account is not None,
+                "displayName": xbox_account.display_name if xbox_account else None,
+                "subtitle": "Xbox-konto tilkoblet" if xbox_account else "Ikke tilkoblet",
+                "avatarUrl": xbox_account.avatar_url if xbox_account else None,
+                "avatarText": "X",
+                "providerAccountId": xbox_account.provider_account_id if xbox_account else None,
+                "canDisconnect": xbox_account is not None,
+            },
+            {
+                "provider": "battlenet",
+                "connected": battlenet_account is not None,
+                "displayName": battlenet_account.display_name if battlenet_account else None,
+                "subtitle": "Battle.net-konto tilkoblet" if battlenet_account else "Ikke tilkoblet",
+                "avatarUrl": battlenet_account.avatar_url if battlenet_account else None,
+                "avatarText": "B",
+                "providerAccountId": battlenet_account.provider_account_id if battlenet_account else None,
+                "canDisconnect": battlenet_account is not None,
+            },
+            {
+                "provider": "discord",
+                "connected": bool(user.discord_id),
+                "displayName": get_user_display_name(user),
+                "subtitle": f"Discord · {discord_suffix}" if user.discord_id else "Primær innlogging mangler",
+                "avatarUrl": user.avatar,
+                "avatarText": "D",
+                "providerAccountId": user.discord_id,
+                "canDisconnect": False,
+            },
+            {
+                "provider": "cod",
+                "connected": cod_account is not None,
+                "displayName": cod_account.display_name if cod_account else None,
+                "subtitle": "CoD-esportsprofil koblet" if cod_account else "Ikke koblet",
+                "avatarUrl": cod_account.avatar_url if cod_account else None,
+                "avatarText": "C",
+                "providerAccountId": cod_account.provider_account_id if cod_account else None,
+                "canDisconnect": cod_account is not None,
+            },
+            {
+                "provider": "epic",
+                "connected": epic_account is not None,
+                "displayName": epic_account.display_name if epic_account else None,
+                "subtitle": "Epic Games-profil koblet" if epic_account else "Ikke koblet",
+                "avatarUrl": epic_account.avatar_url if epic_account else None,
+                "avatarText": "E",
+                "providerAccountId": epic_account.provider_account_id if epic_account else None,
+                "canDisconnect": epic_account is not None,
+            },
+        ]
+    }
+
+
+def serialize_authenticated_user(user):
+    return {
+        "id": user.id,
+        "email": user.email,
+        "discord_id": user.discord_id,
+        "username": user.username,
+        "display_name": get_user_display_name(user),
+        "bio": user.bio,
+        "avatar": user.avatar,
+        "banner": user.banner,
+        "roles": [
+            {
+                "id": role.id,
+                "name": role.name,
+                "badge_color": role.badge_color,
+                "badge_icon": role.badge_icon,
+            }
+            for role in user.roles
         ]
     }
 
@@ -1755,18 +1914,7 @@ def get_current_user():
     user = get_authenticated_user()
     if not user:
          return jsonify({"msg": "User not found"}), 404
-    return jsonify({
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "discord_id": user.discord_id,
-            "username": user.username,
-            "bio": user.bio,
-            "avatar": user.avatar,
-            "banner": user.banner,
-            "roles": [{"id": role.id, "name": role.name, "badge_color": role.badge_color, "badge_icon": role.badge_icon} for role in user.roles]
-        }
-    }), 200
+    return jsonify({"user": serialize_authenticated_user(user)}), 200
 
 
 @app.route('/api/connections', methods=['GET'])
@@ -1800,6 +1948,404 @@ def delete_connection(provider):
     db.session.delete(account)
     db.session.commit()
     return jsonify({"message": f"{normalized_provider} koblet fra."}), 200
+
+
+USERNAME_PATTERN = re.compile(r'^[A-Za-z0-9_]{3,30}$')
+
+DEFAULT_ALERT_PREFERENCES = {
+    "bedriftsmeldinger": True,
+    "hendelser": True,
+    "achievements": True,
+    "venner": False,
+    "thomas": True,
+}
+
+DEFAULT_PRIVACY_PREFERENCES = {
+    "public_profile": True,
+    "show_activity": True,
+    "show_in_leaderboard": True,
+}
+
+
+def validate_settings_username(candidate_username, current_user_id=None):
+    normalized_username = (candidate_username or '').strip()
+    if not normalized_username:
+        return False, "Brukernavn kan ikke være tomt.", None
+    if not USERNAME_PATTERN.fullmatch(normalized_username):
+        return False, "Brukernavn må være 3-30 tegn og kan bare bruke bokstaver, tall og underscore.", None
+
+    existing_user = User.query.filter_by(username=normalized_username).first()
+    if existing_user and existing_user.id != current_user_id:
+        return False, "Brukernavnet er allerede i bruk.", None
+
+    return True, None, normalized_username
+
+
+def get_or_create_connected_account(user_id, provider):
+    account = ConnectedAccount.query.filter_by(user_id=user_id, provider=provider).first()
+    if not account:
+        account = ConnectedAccount(user_id=user_id, provider=provider, provider_account_id='')
+        db.session.add(account)
+    return account
+
+
+@app.route('/api/settings/username-availability', methods=['GET'])
+@jwt_required()
+def check_settings_username_availability():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    candidate_username = request.args.get('username', '')
+    normalized_username = candidate_username.strip()
+    if not normalized_username:
+        return jsonify({
+            "available": False,
+            "state": "empty",
+            "message": "Skriv inn et brukernavn først."
+        }), 200
+
+    if normalized_username == (user.username or ''):
+        return jsonify({
+            "available": True,
+            "state": "unchanged",
+            "message": "Dette er ditt nåværende brukernavn."
+        }), 200
+
+    is_valid, error_message, sanitized_username = validate_settings_username(
+        normalized_username,
+        current_user_id=user.id
+    )
+    if not is_valid:
+        return jsonify({
+            "available": False,
+            "state": "invalid",
+            "message": error_message
+        }), 200
+
+    return jsonify({
+        "available": True,
+        "state": "available",
+        "message": "Brukernavnet er ledig.",
+        "username": sanitized_username
+    }), 200
+
+
+@app.route('/api/settings/account', methods=['POST'])
+@jwt_required()
+def update_settings_account():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    payload = request.get_json() or {}
+    requested_email = (payload.get('email') or '').strip()
+    current_password = payload.get('current_password') or ''
+    new_password = payload.get('new_password') or ''
+
+    wants_email_change = bool(requested_email) and requested_email != user.email
+    wants_password_change = bool(new_password)
+
+    if not wants_email_change and not wants_password_change:
+        return jsonify({"msg": "Ingen kontoendringer å lagre."}), 400
+
+    if not current_password or not user.check_password(current_password):
+        return jsonify({"msg": "Nåværende passord er feil."}), 400
+
+    if wants_email_change:
+        existing_email_owner = User.query.filter(User.email == requested_email, User.id != user.id).first()
+        if existing_email_owner:
+            return jsonify({"msg": "E-postadressen er allerede i bruk."}), 400
+        user.email = requested_email
+
+    if wants_password_change:
+        if len(new_password) < 8:
+            return jsonify({"msg": "Nytt passord må være minst 8 tegn."}), 400
+        user.password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
+
+    db.session.commit()
+
+    return jsonify({
+        "msg": "Konto oppdatert.",
+        "user": serialize_authenticated_user(user)
+    }), 200
+
+
+@app.route('/api/settings/notifications', methods=['GET'])
+@jwt_required()
+def get_settings_notifications():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    alert_preferences = get_user_setting_json(
+        user.id,
+        'alert_preferences',
+        DEFAULT_ALERT_PREFERENCES.copy()
+    ) or DEFAULT_ALERT_PREFERENCES.copy()
+
+    return jsonify({"alert_preferences": alert_preferences}), 200
+
+
+@app.route('/api/settings/notifications', methods=['POST'])
+@jwt_required()
+def save_settings_notifications():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    payload = request.get_json() or {}
+    alert_preferences = {
+        key: bool(payload.get(key, default_value))
+        for key, default_value in DEFAULT_ALERT_PREFERENCES.items()
+    }
+    set_user_setting_json(user.id, 'alert_preferences', alert_preferences)
+    db.session.commit()
+
+    return jsonify({
+        "msg": "Varslingsinnstillinger lagret.",
+        "alert_preferences": alert_preferences
+    }), 200
+
+
+@app.route('/api/settings/privacy', methods=['GET'])
+@jwt_required()
+def get_settings_privacy():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    privacy_preferences = get_user_setting_json(
+        user.id,
+        'privacy_preferences',
+        DEFAULT_PRIVACY_PREFERENCES.copy()
+    ) or DEFAULT_PRIVACY_PREFERENCES.copy()
+
+    return jsonify({"privacy_preferences": privacy_preferences}), 200
+
+
+@app.route('/api/settings/privacy', methods=['POST'])
+@jwt_required()
+def save_settings_privacy():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    payload = request.get_json() or {}
+    privacy_preferences = {
+        key: bool(payload.get(key, default_value))
+        for key, default_value in DEFAULT_PRIVACY_PREFERENCES.items()
+    }
+    set_user_setting_json(user.id, 'privacy_preferences', privacy_preferences)
+    db.session.commit()
+
+    return jsonify({
+        "msg": "Personverninnstillinger lagret.",
+        "privacy_preferences": privacy_preferences
+    }), 200
+
+
+@app.route('/api/settings/connections/cod/search', methods=['GET'])
+@jwt_required()
+def search_cod_connection_profiles():
+    query = (request.args.get('q') or '').strip()
+    if len(query) < 2:
+        return jsonify({"results": []}), 200
+
+    try:
+        search_payload = cito_api_get('cod/search', params={'q': query})
+    except RuntimeError as exc:
+        return jsonify({"msg": str(exc)}), 503
+    except requests.RequestException:
+        return jsonify({"msg": "Kunne ikke hente CoD-profiler akkurat nå."}), 502
+
+    player_results = ((search_payload or {}).get('results') or {}).get('players') or []
+    normalized_results = []
+
+    for player in player_results[:8]:
+        current_team = player.get('currentTeam') or {}
+        subtitle_parts = [
+            current_team.get('name'),
+            first_non_empty(player.get('country'), player.get('region'))
+        ]
+        subtitle = " · ".join(part for part in subtitle_parts if part)
+
+        normalized_results.append({
+            "provider_account_id": player.get('codPlayerId') or player.get('ign'),
+            "codPlayerId": player.get('codPlayerId'),
+            "display_name": player.get('ign') or player.get('realName') or 'Ukjent spiller',
+            "real_name": player.get('realName'),
+            "avatar_url": player.get('imageUrl'),
+            "subtitle": subtitle,
+            "country": player.get('country'),
+            "region": player.get('region'),
+            "team_name": current_team.get('name'),
+            "total_earnings": player.get('totalEarnings'),
+            "tournament_count": player.get('tournamentCount'),
+        })
+
+    return jsonify({"results": normalized_results}), 200
+
+
+@app.route('/api/settings/connections/cod', methods=['POST'])
+@jwt_required()
+def save_cod_connection():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    payload = request.get_json() or {}
+    provider_account_id = (
+        payload.get('provider_account_id')
+        or payload.get('codPlayerId')
+        or ''
+    ).strip()
+    display_name = (payload.get('display_name') or payload.get('displayName') or '').strip()
+    avatar_url = (payload.get('avatar_url') or payload.get('avatarUrl') or '').strip() or None
+    subtitle = (payload.get('subtitle') or '').strip() or None
+
+    if not provider_account_id:
+        return jsonify({"msg": "Manglende CoD-profil."}), 400
+
+    existing_owner = ConnectedAccount.query.filter_by(
+        provider='cod',
+        provider_account_id=provider_account_id
+    ).first()
+    if existing_owner and existing_owner.user_id != user.id:
+        return jsonify({"msg": "Denne CoD-profilen er allerede koblet til en annen bruker."}), 409
+
+    cod_account = ConnectedAccount.query.filter_by(user_id=user.id, provider='cod').first()
+    if not cod_account:
+        cod_account = ConnectedAccount(
+            user_id=user.id,
+            provider='cod',
+            provider_account_id=provider_account_id
+        )
+        db.session.add(cod_account)
+
+    cod_account.provider_account_id = provider_account_id
+    cod_account.display_name = display_name or provider_account_id
+    cod_account.avatar_url = avatar_url
+    cod_account.profile_url = subtitle
+    cod_account.updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+
+    return jsonify({
+        "msg": "CoD-profil koblet til.",
+        "connections": build_connection_payload(user)["connections"]
+    }), 200
+
+
+@app.route('/api/settings/connections/cod', methods=['DELETE'])
+@jwt_required()
+def delete_cod_connection():
+    return delete_connection('cod')
+
+
+@app.route('/api/settings/connections/epic', methods=['POST'])
+@jwt_required()
+def save_epic_connection():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    payload = request.get_json() or {}
+    epic_username = (payload.get('provider_account_id') or payload.get('username') or '').strip()
+    if not epic_username:
+        return jsonify({"msg": "Epic-brukernavn mangler."}), 400
+
+    existing_owner = ConnectedAccount.query.filter_by(
+        provider='epic',
+        provider_account_id=epic_username
+    ).first()
+    if existing_owner and existing_owner.user_id != user.id:
+        return jsonify({"msg": "Denne Epic-profilen er allerede koblet til en annen bruker."}), 409
+
+    epic_account = ConnectedAccount.query.filter_by(user_id=user.id, provider='epic').first()
+    if not epic_account:
+        epic_account = ConnectedAccount(
+            user_id=user.id,
+            provider='epic',
+            provider_account_id=epic_username
+        )
+        db.session.add(epic_account)
+
+    epic_account.provider_account_id = epic_username
+    epic_account.display_name = epic_username
+    epic_account.updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+
+    return jsonify({
+        "msg": "Epic-profil koblet til.",
+        "connections": build_connection_payload(user)["connections"]
+    }), 200
+
+
+@app.route('/api/settings/connections/epic', methods=['DELETE'])
+@jwt_required()
+def delete_epic_connection():
+    return delete_connection('epic')
+
+
+@app.route('/api/settings/sessions/revoke-all', methods=['POST'])
+@jwt_required()
+def revoke_all_sessions():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    revoke_timestamp = datetime.now(timezone.utc).isoformat()
+    set_user_setting(user.id, 'session_revoked_after', revoke_timestamp)
+    db.session.commit()
+
+    return jsonify({
+        "msg": "Alle aktive sesjoner er logget ut.",
+        "danger_zone_result": {"revoked_after": revoke_timestamp}
+    }), 200
+
+
+@app.route('/api/settings/account', methods=['DELETE'])
+@jwt_required()
+def delete_settings_account():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    payload = request.get_json(silent=True) or {}
+    current_password = payload.get('current_password') or ''
+    if not current_password or not user.check_password(current_password):
+        return jsonify({"msg": "Nåværende passord er feil."}), 400
+
+    FriendRequest.query.filter(
+        (FriendRequest.sender_id == user.id) | (FriendRequest.receiver_id == user.id)
+    ).delete(synchronize_session=False)
+    Notification.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    Activity.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    UserShopItem.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    UserAchievement.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    News.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    Bedriftsmelding.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    Thread.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    Comment.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    ConnectedAccount.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+
+    db.session.execute(user_roles.delete().where(user_roles.c.user_id == user.id))
+
+    for setting_suffix in (
+        'display_name',
+        'alert_preferences',
+        'privacy_preferences',
+        'session_revoked_after',
+    ):
+        Setting.query.filter_by(key=get_user_setting_key(user.id, setting_suffix)).delete(synchronize_session=False)
+
+    db.session.delete(user)
+    db.session.commit()
+
+    return jsonify({
+        "msg": "Konto slettet.",
+        "danger_zone_result": {"deleted": True}
+    }), 200
 
 
 @app.route('/api/connections/steam/start', methods=['GET'])
@@ -2607,36 +3153,46 @@ def refresh():
 @app.route('/api/update-profile', methods=['POST'])
 @jwt_required()
 def update_profile():
-    current_user_id = get_jwt_identity()
-    user = User.query.get(int(current_user_id))
-    data = request.get_json()
-    username = data.get('username')
-    bio = data.get('bio')
-    
-    app.logger.debug(f"Updating user {user.id}: new username: {username}, new bio: {bio}")
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
 
-    if bio is not None and len(bio) > 300:
-        return jsonify({"msg": "Bio cant exceed 300 char"}), 400
+    data = request.get_json() or {}
+    requested_username = data.get('username')
+    requested_display_name = data.get('display_name')
+    requested_bio = data.get('bio')
+    requested_banner_url = data.get('banner_url')
 
-    if username is not None:
-        if username.strip() == "":
-            return jsonify({"msg": "Username cannot be empty"}), 400
-        user.username = username
+    if requested_username is not None:
+        is_valid, error_message, sanitized_username = validate_settings_username(
+            requested_username,
+            current_user_id=user.id
+        )
+        if not is_valid:
+            return jsonify({"msg": error_message}), 400
+        user.username = sanitized_username
 
-    if bio is not None:
-        user.bio = bio
+    if requested_bio is not None:
+        normalized_bio = str(requested_bio).strip()
+        if len(normalized_bio) > 300:
+            return jsonify({"msg": "Bio kan ikke overstige 300 tegn."}), 400
+        user.bio = normalized_bio or None
+
+    if requested_display_name is not None:
+        normalized_display_name = str(requested_display_name).strip()
+        if len(normalized_display_name) > 80:
+            return jsonify({"msg": "Visningsnavn kan ikke overstige 80 tegn."}), 400
+        set_user_setting(user.id, 'display_name', normalized_display_name or user.username or user.email)
+
+    if requested_banner_url is not None:
+        normalized_banner_url = str(requested_banner_url).strip()
+        user.banner = normalized_banner_url or None
 
     db.session.commit()
 
     return jsonify({
-        "msg": "Profile updated successfully",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "username": user.username,
-            "bio": user.bio,
-            "avatar": user.avatar
-        }
+        "msg": "Profil oppdatert.",
+        "user": serialize_authenticated_user(user)
     }), 200
 
 # Api for sending message 
@@ -3655,12 +4211,58 @@ def get_cod_leaderboard():
                 "message": "CITO_API_KEY mangler i backend-env.",
             }), 200
 
-        payload = cito_api_get('cod/leaderboards/earnings')
-        rows = payload.get('data') or []
-        trimmed_rows = [row for row in rows if isinstance(row, dict)][:6]
+        current_user_id = int(get_jwt_identity())
+        friend_ids = [
+            friendship.friend_id
+            for friendship in Friendship.query.filter_by(user_id=current_user_id).all()
+        ]
+        relevant_user_ids = [current_user_id, *friend_ids]
+
+        linked_accounts = (
+            ConnectedAccount.query
+            .filter(
+                ConnectedAccount.user_id.in_(relevant_user_ids),
+                ConnectedAccount.provider == 'cod'
+            )
+            .all()
+        )
+
+        if not linked_accounts:
+            return jsonify({
+                "configured": True,
+                "leaderboard": [],
+                "message": "Ingen venner har koblet til CoD-profil ennå.",
+            }), 200
+
+        users_by_id = {
+            user.id: user
+            for user in User.query.filter(User.id.in_(relevant_user_ids)).all()
+        }
+
+        rows = []
+        for account in linked_accounts:
+            try:
+                payload = cito_api_get(f'cod/players/{account.provider_account_id}')
+                row = payload.get('data') or {}
+                if not isinstance(row, dict) or not row:
+                    continue
+                row['_linked_user'] = users_by_id.get(account.user_id)
+                row['_linked_account'] = account
+                rows.append(row)
+            except Exception as inner_error:
+                print(f"Cito player fetch error for account {account.provider_account_id}: {inner_error}")
+
+        trimmed_rows = sorted(
+            rows,
+            key=lambda row: parse_int((row.get('earningsSummary') or {}).get('totalEarnings') or row.get('totalEarnings')),
+            reverse=True
+        )[:6]
 
         highest_earnings = max(
-            [parse_int(row.get('totalEarnings') or row.get('earnings')) for row in trimmed_rows] or [0]
+            [
+                parse_int((row.get('earningsSummary') or {}).get('totalEarnings') or row.get('totalEarnings'))
+                for row in trimmed_rows
+            ] or [0]
         )
 
         gradients = [
@@ -3674,24 +4276,41 @@ def get_cod_leaderboard():
 
         leaderboard = []
         for index, row in enumerate(trimmed_rows, start=1):
-            earnings = parse_int(row.get('totalEarnings') or row.get('earnings'))
+            earnings = parse_int((row.get('earningsSummary') or {}).get('totalEarnings') or row.get('totalEarnings'))
             percent = int(round((earnings / highest_earnings) * 100)) if highest_earnings else 0
             current_team = row.get('currentTeam') or {}
-            subtitle = (
-                current_team.get('name')
-                or row.get('country')
-                or row.get('region')
-                or 'CoD esports'
-            )
+            linked_user = row.get('_linked_user')
+            linked_account = row.get('_linked_account')
+            subtitle_bits = []
+            if linked_user and linked_user.username:
+                subtitle_bits.append(linked_user.username)
+            if current_team.get('name'):
+                subtitle_bits.append(current_team.get('name'))
+            elif row.get('country'):
+                subtitle_bits.append(row.get('country'))
+            elif row.get('region'):
+                subtitle_bits.append(row.get('region'))
+
+            subtitle = ' · '.join(subtitle_bits) if subtitle_bits else 'CoD esports'
 
             leaderboard.append({
                 'position': index,
-                'name': first_non_empty(row.get('ign'), row.get('playerName'), row.get('realName'), 'Ukjent spiller'),
+                'name': first_non_empty(
+                    linked_account.display_name if linked_account else None,
+                    row.get('ign'),
+                    row.get('playerName'),
+                    row.get('realName'),
+                    'Ukjent spiller'
+                ),
                 'subtitle': subtitle,
                 'pct': percent,
                 'value': earnings,
                 'value_label': f"${earnings:,.0f}",
-                'avatar_url': row.get('imageUrl'),
+                'avatar_url': first_non_empty(
+                    row.get('imageUrl'),
+                    linked_account.avatar_url if linked_account else None,
+                    linked_user.avatar if linked_user else None,
+                ),
                 'color': gradients[(index - 1) % len(gradients)],
             })
 
