@@ -722,6 +722,10 @@ def get_openxbl_api_key():
     return (os.getenv('OPENXBL_API_KEY') or os.getenv('XBL_IO_API_KEY') or '').strip()
 
 
+def get_openxbl_app_public_key():
+    return (os.getenv('OPENXBL_APP_PUBLIC_KEY') or os.getenv('XBL_IO_APP_PUBLIC_KEY') or '').strip()
+
+
 def get_cito_api_key():
     return (os.getenv('CITO_API_KEY') or '').strip()
 
@@ -734,19 +738,23 @@ def is_cito_configured():
     return bool(get_cito_api_key())
 
 
-def openxbl_api_get(path, params=None):
-    api_key = get_openxbl_api_key()
+def openxbl_api_get(path, params=None, auth_key=None, use_contract=False):
+    api_key = (auth_key or get_openxbl_api_key() or '').strip()
     if not api_key:
         raise RuntimeError('OPENXBL_API_KEY is not configured')
+
+    headers = {
+        'X-Authorization': api_key,
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US',
+    }
+    if use_contract:
+        headers['X-Contract'] = '100'
 
     response = requests.get(
         f"https://xbl.io/api/v2/{path.lstrip('/')}",
         params=params,
-        headers={
-            'X-Authorization': api_key,
-            'Accept': 'application/json',
-            'Accept-Language': 'en-US',
-        },
+        headers=headers,
         timeout=8,
     )
     response.raise_for_status()
@@ -903,36 +911,88 @@ def normalize_xbox_achievement_item(item, fallback_title=None):
     }
 
 
-def fetch_xbox_profile_by_xuid(xuid):
-    payload = openxbl_api_get(f'account/{xuid}')
+def fetch_current_xbox_profile(auth_key=None, use_contract=False):
+    payload = openxbl_api_get('account', auth_key=auth_key, use_contract=use_contract)
+    people = payload.get('people', []) or payload.get('profileUsers', []) or []
+    if people:
+        return normalize_xbox_profile(people[0])
+    if isinstance(payload, dict):
+        normalized = normalize_xbox_profile(payload)
+        if normalized.get('xuid'):
+            return normalized
+    return None
+
+
+def fetch_xbox_profile_by_xuid(xuid, auth_key=None, use_contract=False):
+    payload = openxbl_api_get(f'account/{xuid}', auth_key=auth_key, use_contract=use_contract)
     people = payload.get('people', []) or payload.get('profileUsers', []) or []
     if people:
         return normalize_xbox_profile(people[0])
     return None
 
 
-def fetch_xbox_presence(xuid):
-    payload = openxbl_api_get(f'{xuid}/presence')
+def fetch_xbox_presence(xuid, auth_key=None, use_contract=False):
+    payload = openxbl_api_get(f'{xuid}/presence', auth_key=auth_key, use_contract=use_contract)
     presence_root = payload.get('presence') or payload.get('people') or payload
     if isinstance(presence_root, list) and presence_root:
         return presence_root[0]
     return presence_root if isinstance(presence_root, dict) else {}
 
 
-def fetch_xbox_title_achievements(xuid):
-    payload = openxbl_api_get(f'achievements/player/{xuid}')
+def fetch_xbox_title_achievements(xuid, auth_key=None, use_contract=False):
+    payload = openxbl_api_get(f'achievements/player/{xuid}', auth_key=auth_key, use_contract=use_contract)
     titles = payload.get('titles') or payload.get('achievements') or payload.get('results') or []
     return [normalize_xbox_achievement_title(item) for item in titles if isinstance(item, dict)]
 
 
-def fetch_xbox_achievement_details(xuid, title_id, fallback_title=None):
-    payload = openxbl_api_get(f'achievements/player/{xuid}/{title_id}')
+def fetch_xbox_achievement_details(xuid, title_id, fallback_title=None, auth_key=None, use_contract=False):
+    payload = openxbl_api_get(f'achievements/player/{xuid}/{title_id}', auth_key=auth_key, use_contract=use_contract)
     achievements = payload.get('achievements') or payload.get('items') or payload.get('results') or []
     return [
         normalize_xbox_achievement_item(item, fallback_title=fallback_title)
         for item in achievements
         if isinstance(item, dict)
     ]
+
+
+def claim_openxbl_app_code(code):
+    app_public_key = get_openxbl_app_public_key()
+    if not app_public_key:
+        raise RuntimeError('OPENXBL_APP_PUBLIC_KEY is not configured')
+
+    response = requests.post(
+        'https://xbl.io/app/claim',
+        json={
+            'code': code,
+            'app_key': app_public_key,
+        },
+        headers={
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+        },
+        timeout=8,
+    )
+    response.raise_for_status()
+
+    payload = response.json() if response.content else {}
+    claimed_key = first_non_empty(
+        payload.get('key'),
+        payload.get('app_key'),
+        payload.get('appKey'),
+        payload.get('secret'),
+        payload.get('token'),
+        payload.get('authorization'),
+        payload.get('authorization_key'),
+    )
+    if not claimed_key and len(payload) == 1:
+        only_value = next(iter(payload.values()))
+        if isinstance(only_value, str) and only_value.strip():
+            claimed_key = only_value.strip()
+
+    if not claimed_key:
+        raise ValueError('OpenXBL claim response did not contain an app key')
+
+    return claimed_key, payload
 
 
 def build_xbox_summary(account):
@@ -953,12 +1013,15 @@ def build_xbox_summary(account):
             },
         }
 
-    if not is_openxbl_configured():
+    auth_key = (account.access_token or '').strip() or get_openxbl_api_key()
+    use_contract = bool((account.access_token or '').strip())
+
+    if not auth_key:
         return {
             'connected': True,
             'configured': False,
             'provider': 'xbox',
-            'message': 'Xbox er koblet til, men OPENXBL_API_KEY mangler i backend-env.',
+            'message': 'Xbox er koblet til, men OpenXBL-nøkkel mangler i backend-env eller kontodata.',
             'current_game': None,
             'recent_games': [],
             'all_games': [],
@@ -970,9 +1033,13 @@ def build_xbox_summary(account):
             },
         }
 
-    profile = fetch_xbox_profile_by_xuid(account.provider_account_id) or {}
-    presence = fetch_xbox_presence(account.provider_account_id) or {}
-    titles = fetch_xbox_title_achievements(account.provider_account_id)
+    profile = (
+        fetch_xbox_profile_by_xuid(account.provider_account_id, auth_key=auth_key, use_contract=use_contract)
+        or fetch_current_xbox_profile(auth_key=auth_key, use_contract=use_contract)
+        or {}
+    )
+    presence = fetch_xbox_presence(account.provider_account_id, auth_key=auth_key, use_contract=use_contract) or {}
+    titles = fetch_xbox_title_achievements(account.provider_account_id, auth_key=auth_key, use_contract=use_contract)
 
     recent_games = titles[:3]
     all_games = titles[:6]
@@ -2559,11 +2626,25 @@ def start_steam_connection():
 
 
 @app.route('/api/connections/xbox/start', methods=['GET'])
-@jwt_required()
+@jwt_required(optional=True)
 def start_xbox_connection():
-    return jsonify({
-        "error": "Xbox-kobling er midlertidig deaktivert til ekte Microsoft/Xbox-verifisering er på plass."
-    }), 410
+    user = get_authenticated_user()
+    if not user:
+        query_token = request.args.get('access_token')
+        user = get_user_from_access_token(query_token)
+
+    if not user:
+        return jsonify({"msg": "User not found"}), 401
+
+    app_public_key = get_openxbl_app_public_key()
+    if not app_public_key:
+        return redirect(f"{get_frontend_base_url()}/dashboard?connection_error=xbox_not_configured")
+
+    session['xbox_link_user_id'] = int(user.id)
+    session['xbox_link_started_at'] = datetime.now(timezone.utc).isoformat()
+    session.modified = True
+
+    return redirect(f"https://xbl.io/app/auth/{requests.utils.quote(app_public_key, safe='')}")
 
 
 @app.route('/api/connections/steam/callback', methods=['GET'])
@@ -2656,55 +2737,31 @@ def steam_connection_callback():
 @app.route('/api/connections/xbox/callback', methods=['GET'])
 def xbox_connection_callback():
     frontend_url = get_frontend_base_url()
-    oauth_config = get_xbox_oauth_config()
-    if not oauth_config:
+    if not get_openxbl_app_public_key():
         return redirect(f"{frontend_url}/dashboard?connection_error=xbox_not_configured")
 
     session_user_id = session.get('xbox_link_user_id')
-    session_state = session.get('xbox_link_state')
-    returned_state = request.args.get('state')
     auth_code = request.args.get('code')
     auth_error = request.args.get('error')
 
     if auth_error:
         session.pop('xbox_link_user_id', None)
-        session.pop('xbox_link_state', None)
+        session.pop('xbox_link_started_at', None)
         return redirect(f"{frontend_url}/dashboard?connection_error=xbox_access_denied")
 
-    if not session_user_id or not session_state or session_state != returned_state:
+    if not session_user_id:
         return redirect(f"{frontend_url}/dashboard?connection_error=xbox_state_invalid")
 
     if not auth_code:
         return redirect(f"{frontend_url}/dashboard?connection_error=xbox_code_missing")
 
-    callback_url = f'{get_backend_base_url()}/api/connections/xbox/callback'
-
     try:
-        token_response = requests.post(
-            oauth_config['token_url'],
-            data={
-                'client_id': oauth_config['client_id'],
-                'client_secret': oauth_config['client_secret'],
-                'code': auth_code,
-                'grant_type': 'authorization_code',
-                'redirect_uri': callback_url,
-                'scope': oauth_config['scope'],
-            },
-            headers={'Accept': 'application/json'},
-            timeout=8,
-        )
-        token_response.raise_for_status()
-        token_payload = token_response.json()
-        access_token = token_payload.get('access_token')
-        refresh_token = token_payload.get('refresh_token')
-        if not access_token:
-            raise ValueError('Missing Microsoft access token')
-
-        xbox_profile = fetch_microsoft_profile(access_token)
+        app_key, _claim_payload = claim_openxbl_app_code(auth_code)
+        xbox_profile = fetch_current_xbox_profile(auth_key=app_key, use_contract=True) or {}
     except (requests.RequestException, ValueError):
         return redirect(f"{frontend_url}/dashboard?connection_error=xbox_profile_failed")
 
-    provider_account_id = xbox_profile.get('account_id')
+    provider_account_id = xbox_profile.get('xuid')
     if not provider_account_id:
         return redirect(f"{frontend_url}/dashboard?connection_error=xbox_id_missing")
 
@@ -2729,16 +2786,16 @@ def xbox_connection_callback():
         db.session.add(account)
 
     account.provider_account_id = provider_account_id
-    account.display_name = xbox_profile.get('display_name') or xbox_profile.get('email') or 'Xbox bruker'
+    account.display_name = xbox_profile.get('display_name') or 'Xbox bruker'
     account.avatar_url = xbox_profile.get('avatar_url')
-    account.profile_url = xbox_profile.get('profile_url')
-    account.access_token = access_token
-    account.refresh_token = refresh_token
+    account.profile_url = 'https://account.xbox.com/en-us/Profile'
+    account.access_token = app_key
+    account.refresh_token = None
     account.updated_at = datetime.now(timezone.utc)
     db.session.commit()
 
     session.pop('xbox_link_user_id', None)
-    session.pop('xbox_link_state', None)
+    session.pop('xbox_link_started_at', None)
     return redirect(f"{frontend_url}/dashboard?linked=xbox")
 
 
@@ -3131,9 +3188,15 @@ def get_dashboard_recent_achievements():
         })
 
     xbox_account = ConnectedAccount.query.filter_by(user_id=user.id, provider='xbox').first()
-    if xbox_account and is_openxbl_configured():
+    xbox_auth_key = ((xbox_account.access_token or '').strip() if xbox_account else '') or get_openxbl_api_key()
+    xbox_use_contract = bool(xbox_account and (xbox_account.access_token or '').strip())
+    if xbox_account and xbox_auth_key:
         try:
-            xbox_titles = fetch_xbox_title_achievements(xbox_account.provider_account_id)
+            xbox_titles = fetch_xbox_title_achievements(
+                xbox_account.provider_account_id,
+                auth_key=xbox_auth_key,
+                use_contract=xbox_use_contract,
+            )
         except requests.RequestException:
             xbox_titles = []
 
@@ -3146,6 +3209,8 @@ def get_dashboard_recent_achievements():
                     xbox_account.provider_account_id,
                     title_id,
                     fallback_title=title.get('title'),
+                    auth_key=xbox_auth_key,
+                    use_contract=xbox_use_contract,
                 )
             except requests.RequestException:
                 continue

@@ -188,7 +188,6 @@
                     type="button"
                     class="settings-secondary-btn settings-btn-sm"
                     @click="startPortalConnection(connection.provider)"
-                    :disabled="isSyncingConnections"
                   >
                     Koble til
                   </button>
@@ -718,7 +717,11 @@ async function startPortalConnection(provider) {
     return
   }
   if (provider === 'xbox') {
-    setStatus(connectionStatusMessage, connectionStatusTone, 'Xbox-kobling er deaktivert til ekte verifisering er på plass.', 'settings-status-muted')
+    if (!auth.token) {
+      setStatus(connectionStatusMessage, connectionStatusTone, 'Du må være logget inn for å starte Xbox-kobling.', 'settings-status-error')
+      return
+    }
+    window.location.href = `${portalApiRoot}/connections/xbox/start?access_token=${encodeURIComponent(auth.token)}`
     return
   }
   if (provider === 'battlenet') setStatus(connectionStatusMessage, connectionStatusTone, 'Battle.net-kobling er ikke aktivert ennå.', 'settings-status-muted')
@@ -1639,4 +1642,3 @@ onMounted(async () => {
   }
 }
 </style>
-

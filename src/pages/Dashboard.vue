@@ -502,7 +502,7 @@ const gamingPlatforms = computed(() => [
 
 const connectionMeta = {
   steam: { name: 'Steam', abbr: 'S', iconClass: 'ci-s', actionable: true },
-  xbox: { name: 'Xbox', abbr: 'X', iconClass: 'ci-x', actionable: false },
+  xbox: { name: 'Xbox', abbr: 'X', iconClass: 'ci-x', actionable: true },
   battlenet: { name: 'Battle.net', abbr: 'B', iconClass: 'ci-b', actionable: false },
   discord: { name: 'Discord', abbr: 'D', iconClass: 'ci-d', actionable: false },
 }
@@ -511,7 +511,7 @@ const resolvedConnections = computed(() => {
   if (!connectionsData.value.length) {
     return [
       { provider: 'steam', connected: false, subtitle: 'Ikke tilkoblet', ...connectionMeta.steam, userText: 'Ikke tilkoblet', actionable: true },
-      { provider: 'xbox', connected: false, subtitle: 'Krever ekte Xbox-app', ...connectionMeta.xbox, userText: 'Krever ekte Xbox-app', actionable: false },
+      { provider: 'xbox', connected: false, subtitle: 'Ikke tilkoblet', ...connectionMeta.xbox, userText: 'Ikke tilkoblet', actionable: true },
       { provider: 'battlenet', connected: false, subtitle: 'Kommer senere', ...connectionMeta.battlenet, userText: 'Kommer senere', actionable: false },
       {
         provider: 'discord',
@@ -536,7 +536,7 @@ const resolvedConnections = computed(() => {
         : (connection.subtitle || 'Ikke tilkoblet'),
       actionable: connection.connected
         ? ['steam', 'xbox'].includes(connection.provider)
-        : (meta.actionable && connection.provider === 'steam'),
+        : ['steam', 'xbox'].includes(connection.provider) && meta.actionable,
     }
   })
 })
@@ -848,12 +848,19 @@ async function handleConnectionAction(connection) {
 
     if (!accessToken || !apiBase) {
       connectionStatusType.value = 'status-error'
-      connectionStatus.value = 'Mangler innloggingsdata for å starte Steam-koblingen.'
+      connectionStatus.value = `Mangler innloggingsdata for å starte ${connection.name}-koblingen.`
       return
     }
 
-    window.location.href = `${apiBase}/connections/steam/start?access_token=${encodeURIComponent(accessToken)}`
-    return
+    if (connection.provider === 'steam') {
+      window.location.href = `${apiBase}/connections/steam/start?access_token=${encodeURIComponent(accessToken)}`
+      return
+    }
+
+    if (connection.provider === 'xbox') {
+      window.location.href = `${apiBase}/connections/xbox/start?access_token=${encodeURIComponent(accessToken)}`
+      return
+    }
 
     connectionStatusType.value = 'status-error'
     connectionStatus.value = `Kunne ikke starte ${connection.name}-koblingen.`
