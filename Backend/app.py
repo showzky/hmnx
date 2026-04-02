@@ -2760,9 +2760,13 @@ def xbox_connection_callback():
         return redirect(f"{frontend_url}/dashboard?connection_error=xbox_code_missing")
 
     try:
+        print("XBOX_DEBUG_CLAIM_START:", auth_code[:12] + "..." if isinstance(auth_code, str) else auth_code)
         app_key, _claim_payload = claim_openxbl_app_code(auth_code)
+        print("XBOX_DEBUG_CLAIM_SUCCESS:", repr(app_key))
         xbox_profile = fetch_current_xbox_profile(auth_key=app_key, use_contract=True) or {}
-    except (requests.RequestException, ValueError):
+        print("XBOX_DEBUG_PROFILE_SUCCESS:", xbox_profile)
+    except (requests.RequestException, ValueError) as exc:
+        print("XBOX_DEBUG_PROFILE_FAILED:", repr(exc))
         return redirect(f"{frontend_url}/dashboard?connection_error=xbox_profile_failed")
 
     provider_account_id = xbox_profile.get('xuid')
