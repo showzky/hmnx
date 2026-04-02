@@ -996,6 +996,71 @@ def claim_openxbl_app_code(code):
     return claimed_key, payload
 
 
+def build_steam_summary(account):
+    base = {
+        'connected': False,
+        'configured': bool(os.getenv('STEAM_WEB_API_KEY')),
+        'provider': 'steam',
+        'message': 'Steam er ikke tilkoblet.',
+        'current_game': None,
+        'recent_games': [],
+        'all_games': [],
+        'totals': {'total_hours': 0, 'owned_games': 0, 'recent_games': 0},
+    }
+    if not account:
+        return base
+    if not os.getenv('STEAM_WEB_API_KEY'):
+        base.update({'connected': True, 'configured': False,
+                     'message': 'Steam er koblet til, men STEAM_WEB_API_KEY mangler i backend-env.'})
+        return base
+    steam_id = account.provider_account_id
+    try:
+        owned_games_response = steam_api_get(
+            'IPlayerService', 'GetOwnedGames', 'v0001',
+            {'steamid': steam_id, 'include_appinfo': 1, 'include_played_free_games': 1}
+        )
+        presence = fetch_steam_presence(account)
+    except requests.RequestException as exc:
+        base.update({'connected': True, 'configured': True,
+                     'message': f'Kunne ikke hente Steam-data akkurat nå: {exc}'})
+        return base
+
+    player = (presence or {}).get('player', {})
+    recent_games = (presence or {}).get('recent_games', [])
+    owned_games = (owned_games_response or {}).get('response', {}).get('games', []) or []
+    recent_payload = [build_steam_game_payload(game) for game in recent_games[:3]]
+    all_games_payload = [
+        build_steam_game_payload(game)
+        for game in sorted(owned_games, key=lambda item: item.get('playtime_forever', 0), reverse=True)[:6]
+    ]
+    current_game_name = player.get('gameextrainfo') or (recent_payload[0]['title'] if recent_payload else None)
+    current_game = None
+    if current_game_name:
+        matched_recent = next((g for g in recent_payload if g['title'] == current_game_name), None)
+        current_game = {
+            'title': current_game_name,
+            'subtitle': matched_recent['right_stat'] if matched_recent else (
+                f"{minutes_to_hours(recent_games[0].get('playtime_2weeks', 0))}t siste 2 uker" if recent_games else 'Steam'
+            ),
+            'provider': 'Steam',
+        }
+    total_minutes = sum((game.get('playtime_forever', 0) or 0) for game in owned_games)
+    return {
+        'connected': True,
+        'configured': True,
+        'provider': 'steam',
+        'message': None,
+        'current_game': current_game,
+        'recent_games': recent_payload,
+        'all_games': all_games_payload or recent_payload,
+        'totals': {
+            'total_hours': minutes_to_hours(total_minutes),
+            'owned_games': len(owned_games),
+            'recent_games': len(recent_games),
+        },
+    }
+
+
 def build_xbox_summary(account):
     if not account:
         return {
@@ -2830,78 +2895,7 @@ def get_dashboard_gaming_summary():
     steam_account = ConnectedAccount.query.filter_by(user_id=user.id, provider='steam').first()
     xbox_account = ConnectedAccount.query.filter_by(user_id=user.id, provider='xbox').first()
 
-    steam_summary = {
-        'connected': False,
-        'configured': bool(os.getenv('STEAM_WEB_API_KEY')),
-        'provider': 'steam',
-        'message': 'Steam er ikke tilkoblet.',
-        'current_game': None,
-        'recent_games': [],
-        'all_games': [],
-        'totals': {'total_hours': 0, 'owned_games': 0, 'recent_games': 0},
-    }
-
-    if steam_account:
-        if not os.getenv('STEAM_WEB_API_KEY'):
-            steam_summary.update({
-                'connected': True,
-                'configured': False,
-                'message': 'Steam er koblet til, men STEAM_WEB_API_KEY mangler i backend-env.',
-            })
-        else:
-            steam_id = steam_account.provider_account_id
-            try:
-                owned_games_response = steam_api_get(
-                    'IPlayerService',
-                    'GetOwnedGames',
-                    'v0001',
-                    {'steamid': steam_id, 'include_appinfo': 1, 'include_played_free_games': 1}
-                )
-                presence = fetch_steam_presence(steam_account)
-            except requests.RequestException as exc:
-                steam_summary.update({
-                    'connected': True,
-                    'configured': True,
-                    'message': f'Kunne ikke hente Steam-data akkurat nå: {exc}',
-                })
-            else:
-                player = (presence or {}).get('player', {})
-                recent_games = (presence or {}).get('recent_games', [])
-                owned_games = (owned_games_response or {}).get('response', {}).get('games', []) or []
-
-                recent_payload = [build_steam_game_payload(game) for game in recent_games[:3]]
-                all_games_payload = [
-                    build_steam_game_payload(game)
-                    for game in sorted(owned_games, key=lambda item: item.get('playtime_forever', 0), reverse=True)[:6]
-                ]
-
-                current_game_name = player.get('gameextrainfo') or (recent_payload[0]['title'] if recent_payload else None)
-                current_game = None
-                if current_game_name:
-                    matched_recent = next((game for game in recent_payload if game['title'] == current_game_name), None)
-                    current_game = {
-                        'title': current_game_name,
-                        'subtitle': matched_recent['right_stat'] if matched_recent else (
-                            f"{minutes_to_hours(recent_games[0].get('playtime_2weeks', 0))}t siste 2 uker" if recent_games else 'Steam'
-                        ),
-                        'provider': 'Steam',
-                    }
-
-                total_minutes = sum((game.get('playtime_forever', 0) or 0) for game in owned_games)
-                steam_summary = {
-                    'connected': True,
-                    'configured': True,
-                    'provider': 'steam',
-                    'message': None,
-                    'current_game': current_game,
-                    'recent_games': recent_payload,
-                    'all_games': all_games_payload or recent_payload,
-                    'totals': {
-                        'total_hours': minutes_to_hours(total_minutes),
-                        'owned_games': len(owned_games),
-                        'recent_games': len(recent_games),
-                    },
-                }
+    steam_summary = build_steam_summary(steam_account)
 
     try:
         xbox_summary = build_xbox_summary(xbox_account)
@@ -4752,6 +4746,65 @@ def get_users():
 
 # ===================== END get_users ENDPOINT =====================
 
+
+# ===================== START get_user_by_id ENDPOINT =====================
+@app.route('/api/users/<int:user_id>', methods=['GET'])
+@jwt_required()
+def get_user_by_id(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    connected = {}
+    for acc in user.connected_accounts:
+        connected[acc.provider] = {
+            'display_name': acc.display_name,
+            'avatar_url': acc.avatar_url,
+            'profile_url': acc.profile_url,
+            'provider_account_id': acc.provider_account_id,
+        }
+
+    return jsonify({
+        'id': user.id,
+        'username': user.username or '',
+        'display_name': get_user_display_name(user),
+        'bio': user.bio,
+        'avatar': user.avatar,
+        'banner': user.banner,
+        'krenke_level': user.krenke_level or 0,
+        'roles': [serialize_role(role) for role in user.roles],
+        'connected_accounts': connected,
+    }), 200
+# ===================== END get_user_by_id ENDPOINT =====================
+
+
+# ===================== START get_user_gaming_summary ENDPOINT =====================
+@app.route('/api/users/<int:user_id>/gaming-summary', methods=['GET'])
+@jwt_required()
+def get_user_gaming_summary(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    steam_account = ConnectedAccount.query.filter_by(user_id=user.id, provider='steam').first()
+    xbox_account = ConnectedAccount.query.filter_by(user_id=user.id, provider='xbox').first()
+
+    steam_summary = build_steam_summary(steam_account)
+    try:
+        xbox_summary = build_xbox_summary(xbox_account)
+    except (requests.RequestException, RuntimeError):
+        xbox_summary = {
+            'connected': xbox_account is not None,
+            'configured': is_openxbl_configured(),
+            'provider': 'xbox', 'recent_games': [], 'all_games': [],
+            'totals': {'gamerscore': 0, 'owned_games': 0, 'recent_games': 0, 'achievements_unlocked': 0},
+        }
+
+    return jsonify({
+        'steam': steam_summary,
+        'xbox': xbox_summary,
+    }), 200
+# ===================== END get_user_gaming_summary ENDPOINT =====================
 
 
 # ===================== START get_roles ENDPOINT =====================
