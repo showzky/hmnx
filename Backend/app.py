@@ -946,6 +946,15 @@ def fetch_xbox_title_achievements(xuid, auth_key=None, use_contract=False):
     return [normalize_xbox_achievement_title(item) for item in titles if isinstance(item, dict)]
 
 
+def fetch_xbox_title_history(xuid, auth_key=None, use_contract=False):
+    try:
+        payload = openxbl_api_get(f'player/titleHistory/{xuid}', auth_key=auth_key, use_contract=use_contract)
+    except requests.RequestException:
+        return []
+    titles = payload.get('titles') or payload.get('games') or payload.get('results') or []
+    return [normalize_xbox_achievement_title(item) for item in titles if isinstance(item, dict)]
+
+
 def fetch_xbox_achievement_details(xuid, title_id, fallback_title=None, auth_key=None, use_contract=False):
     payload = openxbl_api_get(f'achievements/player/{xuid}/{title_id}', auth_key=auth_key, use_contract=use_contract)
     achievements = payload.get('achievements') or payload.get('items') or payload.get('results') or []
@@ -1106,6 +1115,8 @@ def build_xbox_summary(account):
     )
     presence = fetch_xbox_presence(account.provider_account_id, auth_key=auth_key, use_contract=use_contract) or {}
     titles = fetch_xbox_title_achievements(account.provider_account_id, auth_key=auth_key, use_contract=use_contract)
+    if not titles:
+        titles = fetch_xbox_title_history(account.provider_account_id, auth_key=auth_key, use_contract=use_contract)
 
     recent_games = titles[:3]
     all_games = titles[:6]
