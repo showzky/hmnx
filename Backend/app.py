@@ -2765,15 +2765,21 @@ def xbox_connection_callback():
         app_key, _claim_payload = claim_openxbl_app_code(auth_code)
         print("XBOX_DEBUG_CLAIM_SUCCESS:", repr(app_key))
         print("XBOX_DEBUG_CLAIM_PAYLOAD:", _claim_payload)
+    except (requests.RequestException, ValueError) as exc:
+        print("XBOX_DEBUG_CLAIM_FAILED:", repr(exc))
+        return redirect(f"{frontend_url}/dashboard?connection_error=xbox_profile_failed_claim")
+
+    try:
         xbox_profile = fetch_current_xbox_profile(auth_key=app_key, use_contract=True) or {}
         print("XBOX_DEBUG_PROFILE_SUCCESS:", xbox_profile)
     except (requests.RequestException, ValueError) as exc:
-        print("XBOX_DEBUG_PROFILE_FAILED:", repr(exc))
-        return redirect(f"{frontend_url}/dashboard?connection_error=xbox_profile_failed")
+        print("XBOX_DEBUG_PROFILE_FETCH_FAILED:", repr(exc))
+        return redirect(f"{frontend_url}/dashboard?connection_error=xbox_profile_failed_account")
 
     provider_account_id = xbox_profile.get('xuid')
     if not provider_account_id:
-        return redirect(f"{frontend_url}/dashboard?connection_error=xbox_id_missing")
+        print("XBOX_DEBUG_PROFILE_EMPTY_XUID:", xbox_profile)
+        return redirect(f"{frontend_url}/dashboard?connection_error=xbox_profile_failed_empty")
 
     user = User.query.get(int(session_user_id))
     if not user:
