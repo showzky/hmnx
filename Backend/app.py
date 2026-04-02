@@ -2645,7 +2645,7 @@ def start_xbox_connection():
     session['xbox_link_started_at'] = datetime.now(timezone.utc).isoformat()
     session.modified = True
 
-    return redirect(f"https://xbl.io/app/auth/{requests.utils.quote(app_public_key, safe='')}")
+    return redirect(f"https://api.xbl.io/app/auth/{requests.utils.quote(app_public_key, safe='')}")
 
 
 @app.route('/api/connections/steam/callback', methods=['GET'])
