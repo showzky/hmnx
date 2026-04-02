@@ -126,6 +126,7 @@
 import axios from '@/axios';
 import { ref, computed } from 'vue';
 import SnackBar from '@/components/SnackBar.vue'; // <-- IMPORT SNACKBAR
+import { hasPermission } from '@/utils/permissions';
 
 export default {
   components: {
@@ -163,9 +164,13 @@ export default {
     return [];
   },
   canManageSongs() {
-    return this.userRoles.includes('developer') || 
-           this.userRoles.includes('admin') || 
-           this.userRoles.includes('producer');
+    const userData = localStorage.getItem('user');
+    if (!userData) return false;
+    try {
+      return hasPermission(JSON.parse(userData), 'manage_music');
+    } catch {
+      return false;
+    }
   },
   currentSong() {
     if (!this.songs || this.songs.length === 0) return undefined;

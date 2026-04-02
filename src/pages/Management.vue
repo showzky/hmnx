@@ -30,6 +30,7 @@
           :createEventMessage="createEventMessage"
           :createEventSuccess="createEventSuccess"
           :userRoles="userRoles"
+          :userPermissions="userPermissions"
           :usersList="usersList"
           :userRoleUpdate="userRoleUpdate"
           :availableRoles="availableRoles"
@@ -104,6 +105,7 @@ import { useAuthStore } from '@/stores/authStore';
 import axios from '@/axios'; 
 import { useWebSocket } from '@/composables/useWebSocket';
 import { ref } from 'vue';
+import { getDashboardFlavor, getRoleNames, hasAnyPermission, hasPermission } from '@/utils/permissions';
 
 import AdminSidebar from '../components/admin/AdminSidebar.vue';
 import AdminHeader from '../components/admin/AdminHeader.vue';
@@ -211,15 +213,21 @@ export default {
     };
   },
 
-  computed: {
+    computed: {
     auth() {
       return useAuthStore();
     },
     canAccessManagement() {
-      return ['developer', 'admin', 'producer'].some(role => this.userRoles.includes(role));
+      return hasPermission(this.auth.user, 'access_management') || hasAnyPermission(this.auth.user, [
+        'manage_music',
+        'publish_bedriftsmeldinger',
+        'edit_bedriftsmeldinger',
+        'manage_users',
+        'manage_roles',
+      ]);
     },
     isProducer() {
-      return this.userRoles.includes('producer');
+      return getDashboardFlavor(this.auth.user) === 'music';
     },
     displayName() {
       return this.auth.user?.username || 'Admin User';
@@ -232,25 +240,27 @@ export default {
       );
     },
     userRoles() {
-      try {
-        const user = JSON.parse(localStorage.getItem('user'));
-        return user?.roles?.map(role => role.name.toLowerCase()) || [];
-      } catch {
-        return [];
-      }
+      return getRoleNames(this.auth.user);
+    },
+    userPermissions() {
+      return Array.isArray(this.auth.user?.permissions) ? this.auth.user.permissions : [];
     },
     canManageSongs() {
-      return ['developer', 'admin', 'producer'].some(role => this.userRoles.includes(role));
+      return hasPermission(this.auth.user, 'manage_music');
     },
     isOnlyProducer() {
       return (
-        this.userRoles.includes('producer') &&
+        getDashboardFlavor(this.auth.user) === 'music' &&
         !this.userRoles.includes('admin') &&
         !this.userRoles.includes('developer')
       );
     },
     isAdminOrDeveloper() {
-      return this.userRoles.includes('admin') || this.userRoles.includes('developer');
+      return this.userRoles.includes('admin') || this.userRoles.includes('developer') || hasAnyPermission(this.auth.user, [
+        'manage_users',
+        'manage_roles',
+        'manage_settings',
+      ]);
     },
   },
 
@@ -778,9 +788,14 @@ export default {
 
   },
 
-  mounted() {
-    if (!localStorage.getItem('access_token')) {
+  async mounted() {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
       return this.$router.push('/login');
+    }
+
+    if (!Array.isArray(this.auth.user?.permissions)) {
+      await this.auth.hydrateFromToken(token);
     }
 
     if (!this.canAccessManagement) {

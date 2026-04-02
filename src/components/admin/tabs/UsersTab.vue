@@ -1,5 +1,5 @@
 <template>
-  <section v-if="userRoles.includes('admin') || userRoles.includes('developer')">
+  <section v-if="userRoles.includes('admin') || userRoles.includes('developer') || userPermissions.includes('manage_roles') || userPermissions.includes('manage_users')">
     <div class="sec-head mb24">
       <div>
         <div class="sec-title">Roles & <em>Permissions</em></div>
@@ -40,7 +40,10 @@
           <div class="head-actions">
             <span v-if="!isDraft && isSystemRole(selectedRole)" class="tiny-pill">Beskyttet</span>
             <button v-if="isDraft" class="btn btn-red btn-sm" :disabled="!draft.name.trim()" @click="createDraft">Opprett rolle</button>
-            <button v-else-if="!isSystemRole(selectedRole)" class="btn btn-danger btn-sm" @click="$emit('deleteRole', selectedRole.id)">Slett rolle</button>
+            <template v-else>
+              <button class="btn btn-red btn-sm" @click="saveSelectedRole">Lagre endringer</button>
+              <button v-if="!isSystemRole(selectedRole)" class="btn btn-danger btn-sm" @click="$emit('deleteRole', selectedRole.id)">Slett rolle</button>
+            </template>
           </div>
         </div>
 
@@ -201,7 +204,7 @@ const PERMISSION_GROUPS = [
 ];
 
 export default {
-  props: ['userRoles', 'usersList', 'userRoleUpdate', 'availableRoles', 'updateUserMessage', 'updateUserSuccess', 'selectedUserRoles', 'userRoleRemove', 'selectedUserRolesToRemove', 'rolesToRemove', 'removeRoleMessage', 'removeRoleSuccess', 'newRole', 'createRoleMessage', 'createRoleSuccess'],
+  props: ['userRoles', 'userPermissions', 'usersList', 'userRoleUpdate', 'availableRoles', 'updateUserMessage', 'updateUserSuccess', 'selectedUserRoles', 'userRoleRemove', 'selectedUserRolesToRemove', 'rolesToRemove', 'removeRoleMessage', 'removeRoleSuccess', 'newRole', 'createRoleMessage', 'createRoleSuccess'],
   emits: ['updateUserRole', 'fetchUserRolesToRemove', 'removeSelectedRoles', 'createRole', 'deleteRole', 'update:userRoleUpdate', 'update:userRoleRemove', 'update:rolesToRemove', 'update:newRole'],
   data() {
     return {
@@ -300,45 +303,110 @@ export default {
     onColor(value) { this.isDraft ? this.draft.badge_color = value : this.updateConfig('previewColor', value); },
     onHex(value) { if (/^#[0-9a-fA-F]{6}$/.test(value)) this.isDraft ? this.draft.badge_color = value : this.updateConfig('previewColor', value); },
     createDraft() {
-      this.$emit('update:newRole', { name: this.draft.name.trim(), badge_color: this.roleColor(this.draft.badge_color), badge_icon: '' });
+      this.$emit('update:newRole', {
+        name: this.draft.name.trim(),
+        badge_color: this.roleColor(this.draft.badge_color),
+        badge_icon: '',
+        dashboard_flavor: this.roleConfig.flavor || 'default',
+      });
       this.$emit('createRole');
       this.roleFeedback = 'Ny rolle sendes til backend med trygg standard uten permissions.';
       this.roleFeedbackSuccess = true;
     },
-    addMember(user) {
-      if (!this.selectedRole || !user) return;
-      if (user && Array.isArray(user.roles) && !user.roles.some(role => role.id === this.selectedRole.id)) {
-        user.roles.push({
-          id: this.selectedRole.id,
-          name: this.selectedRole.name,
-          badge_color: this.selectedRole.badge_color,
+    async saveSelectedRole() {
+      if (!this.selectedRole || this.isDraft) return;
+      try {
+        const apiBase = import.meta.env.VITE_API_URL;
+        const authHeader = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
+
+        const displayRes = await fetch(`${apiBase}/roles/${this.selectedRole.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeader,
+          },
+          body: JSON.stringify({
+            name: this.selectedRole.name,
+            badge_color: this.currentColor,
+            badge_icon: this.selectedRole.badge_icon || '',
+            dashboard_flavor: this.roleConfig.flavor || 'default',
+          }),
         });
+        if (!displayRes.ok) throw new Error('Failed to update role display');
+        const displayPayload = await displayRes.json();
+
+        const permissionRes = await fetch(`${apiBase}/roles/${this.selectedRole.id}/permissions`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeader,
+          },
+          body: JSON.stringify({
+            permissions: this.roleConfig.permissions,
+          }),
+        });
+        if (!permissionRes.ok) throw new Error('Failed to update role permissions');
+        const permissionPayload = await permissionRes.json();
+        const savedRole = permissionPayload.role || displayPayload.role;
+
+        const roleIndex = this.availableRoles.findIndex(role => role.id === savedRole.id);
+        if (roleIndex !== -1) {
+          this.availableRoles.splice(roleIndex, 1, savedRole);
+        }
+
+        this.roleConfigs = {
+          ...this.roleConfigs,
+          [`role-${savedRole.id}`]: {
+            permissions: savedRole.permissions || [],
+            flavor: savedRole.dashboard_flavor || 'default',
+          },
+        };
+
+        this.roleFeedback = 'Rollen ble oppdatert.';
+        this.roleFeedbackSuccess = true;
+      } catch (error) {
+        this.roleFeedback = 'Klarte ikke å lagre rolleendringene.';
+        this.roleFeedbackSuccess = false;
       }
-      this.$emit('update:userRoleUpdate', { ...this.userRoleUpdate, selectedUser: String(user.id), newRole: String(this.selectedRole.id) });
-      this.$emit('updateUserRole');
-      this.memberSearch = '';
-      this.roleFeedback = 'Rolle blir lagt til via dagens backend-flyt.';
-      this.roleFeedbackSuccess = true;
+    },
+    async addMember(user) {
+      if (!this.selectedRole || !user) return;
+      try {
+        const apiBase = import.meta.env.VITE_API_URL;
+        const res = await fetch(`${apiBase}/roles/${this.selectedRole.id}/members`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+          },
+          body: JSON.stringify({ user_id: user.id }),
+        });
+        if (!res.ok) throw new Error('Failed to add role');
+        const payload = await res.json();
+        if (Array.isArray(user.roles)) {
+          user.roles = payload.user?.roles || user.roles;
+        }
+        this.memberSearch = '';
+        this.roleFeedback = 'Rolle ble lagt til brukeren.';
+        this.roleFeedbackSuccess = true;
+      } catch (error) {
+        this.roleFeedback = 'Klarte ikke å legge til rollen på brukeren.';
+        this.roleFeedbackSuccess = false;
+      }
     },
     async removeMember(member) {
       if (!this.selectedRole) return;
       try {
         const apiBase = import.meta.env.VITE_API_URL;
-        const res = await fetch(`${apiBase}/demote-user`, {
-          method: 'PUT',
+        const res = await fetch(`${apiBase}/roles/${this.selectedRole.id}/members/${member.id}`, {
+          method: 'DELETE',
           headers: {
-            'Content-Type': 'application/json',
             Authorization: `Bearer ${localStorage.getItem('access_token')}`,
           },
-          body: JSON.stringify({
-            user_id: member.id,
-            role_to_remove: this.selectedRole.name,
-          }),
         });
         if (!res.ok) throw new Error('Failed to remove role');
-        if (Array.isArray(member.roles)) {
-          member.roles = member.roles.filter(role => role.id !== this.selectedRole.id);
-        }
+        const payload = await res.json();
+        if (Array.isArray(member.roles)) member.roles = payload.user?.roles || [];
         this.roleFeedback = `Rollen ${this.selectedRole.name} ble fjernet fra ${member.username || member.email}.`;
         this.roleFeedbackSuccess = true;
       } catch (e) {

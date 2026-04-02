@@ -10,19 +10,21 @@
 </template>
 
 <script>
+import { getDashboardFlavor, hasPermission, hasAnyPermission } from '@/utils/permissions';
+
 export default {
   name: 'ProducerButton',
   computed: {
     canSeeProducerButton() {
-      // List of allowed roles (add more as needed)
-      const allowedRoles = ['producer', 'admin', 'developer'];
       let user = null;
       try {
         user = JSON.parse(localStorage.getItem('user'));
       } catch {}
-      if (!user || !user.roles) return false;
-      return user.roles.some(role =>
-        allowedRoles.includes(role.name.toLowerCase())
+      if (!user) return false;
+      return (
+        hasPermission(user, 'access_management') ||
+        hasAnyPermission(user, ['manage_music', 'publish_bedriftsmeldinger']) ||
+        getDashboardFlavor(user) === 'music'
       );
     }
   },

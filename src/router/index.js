@@ -104,7 +104,7 @@ router.beforeEach(async (to, from) => {
   }
 
   const token = localStorage.getItem('access_token');
-  if (token && (!auth.user || !auth.isAuthenticated)) {
+  if (token && (!auth.user || !auth.isAuthenticated || !Array.isArray(auth.user?.permissions))) {
     await auth.hydrateFromToken(token);
   }
 

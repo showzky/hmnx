@@ -50,6 +50,7 @@
         <UsersTab
           v-if="activeTab === 'users'"
           :userRoles="userRoles"
+          :userPermissions="userPermissions"
           :usersList="usersList"
           :userRoleUpdate="userRoleUpdate"
           :availableRoles="availableRoles"
@@ -174,6 +175,7 @@ export default {
     createEventMessage: { type: String, default: '' },
     createEventSuccess: { type: Boolean, default: false },
     userRoles: { type: Array, default: () => [] },
+    userPermissions: { type: Array, default: () => [] },
     usersList: { type: Array, default: () => [] },
     userRoleUpdate: { type: Object, default: () => ({ selectedUser: '', newRole: '' }) },
     availableRoles: { type: Array, default: () => [] },

@@ -82,6 +82,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import { getDashboardFlavor, getRoleNames, hasPermission, hasAnyPermission } from '@/utils/permissions';
 
 const props = defineProps({
   user: Object,
@@ -101,28 +102,29 @@ defineEmits([
   'toggle-dark', 'logout',
 ]);
 
-const userRoles = computed(() =>
-  Array.isArray(props.user?.roles)
-    ? props.user.roles.map(role => role?.name?.toLowerCase?.()).filter(Boolean)
-    : []
-);
+const userRoles = computed(() => getRoleNames(props.user));
 
 const isAdminOrStaff = computed(() =>
   userRoles.value.some(role => ['admin', 'developer', 'staff', 'moderator', 'superadmin'].includes(role))
 );
 
-const isProducerOnly = computed(() =>
-  !isAdminOrStaff.value && userRoles.value.includes('producer')
+const canAccessManagement = computed(() =>
+  hasPermission(props.user, 'access_management') ||
+  hasAnyPermission(props.user, ['manage_music', 'publish_bedriftsmeldinger', 'edit_bedriftsmeldinger'])
 );
 
-const canSeeDashboard = computed(() => isAdminOrStaff.value || isProducerOnly.value);
+const isProducerOnly = computed(() =>
+  !isAdminOrStaff.value && getDashboardFlavor(props.user) === 'music'
+);
+
+const canSeeDashboard = computed(() => isAdminOrStaff.value || canAccessManagement.value || isProducerOnly.value);
 
 const dashboardLabel = computed(() =>
-  isAdminOrStaff.value ? 'Dashboard' : 'Music Dashboard'
+  getDashboardFlavor(props.user) === 'music' && !isAdminOrStaff.value ? 'Music Dashboard' : 'Dashboard'
 );
 
 const dashboardIcon = computed(() =>
-  isAdminOrStaff.value ? 'fas fa-shield-halved' : 'fas fa-sliders'
+  getDashboardFlavor(props.user) === 'music' && !isAdminOrStaff.value ? 'fas fa-sliders' : 'fas fa-shield-halved'
 );
 
 const topRoleLabel = computed(() => {

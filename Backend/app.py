@@ -29,8 +29,16 @@ from enum import Enum
 import defusedxml.ElementTree as ET
 import json
 from pathlib import Path
-from soundcloud_routes import soundcloud_bp
-from steam_achievement_utils import select_latest_recent_steam_achievement
+try:
+    from permissions import DEFAULT_DASHBOARD_FLAVOR, PERMISSION_DEFINITIONS, default_role_metadata, normalize_permission_keys
+    from role_permission_routes import register_role_permission_routes
+    from soundcloud_routes import soundcloud_bp
+    from steam_achievement_utils import select_latest_recent_steam_achievement
+except ModuleNotFoundError:
+    from Backend.permissions import DEFAULT_DASHBOARD_FLAVOR, PERMISSION_DEFINITIONS, default_role_metadata, normalize_permission_keys
+    from Backend.role_permission_routes import register_role_permission_routes
+    from Backend.soundcloud_routes import soundcloud_bp
+    from Backend.steam_achievement_utils import select_latest_recent_steam_achievement
 
 # In-memory store for playlist data
 playlist_data = []
@@ -560,6 +568,108 @@ def set_user_setting_json(user_id, suffix, payload):
     set_user_setting(user_id, suffix, json.dumps(payload, separators=(',', ':')))
 
 
+def get_role_setting_key(role_id, suffix):
+    return f"role:{role_id}:{suffix}"
+
+
+def get_role_setting_json(role_id, suffix, default=None):
+    raw_value = get_setting(get_role_setting_key(role_id, suffix))
+    if not raw_value:
+        return default
+    try:
+        return json.loads(raw_value)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return default
+
+
+def set_role_setting_json(role_id, suffix, payload):
+    set_setting(get_role_setting_key(role_id, suffix), json.dumps(payload, separators=(',', ':')))
+
+
+def get_role_metadata(role):
+    if not role:
+        return {
+            "system_role": False,
+            "dashboard_flavor": DEFAULT_DASHBOARD_FLAVOR,
+            "permissions": [],
+        }
+
+    metadata = default_role_metadata(role.name)
+    stored_metadata = get_role_setting_json(role.id, 'meta', {}) or {}
+
+    if isinstance(stored_metadata, dict):
+        if 'system_role' in stored_metadata:
+            metadata['system_role'] = bool(stored_metadata.get('system_role'))
+        if stored_metadata.get('dashboard_flavor'):
+            metadata['dashboard_flavor'] = stored_metadata.get('dashboard_flavor')
+        metadata['permissions'] = normalize_permission_keys(
+            stored_metadata.get('permissions', metadata.get('permissions', []))
+        )
+
+    return metadata
+
+
+def set_role_metadata(role, metadata):
+    payload = {
+        "system_role": bool(metadata.get('system_role', False)),
+        "dashboard_flavor": metadata.get('dashboard_flavor') or DEFAULT_DASHBOARD_FLAVOR,
+        "permissions": normalize_permission_keys(metadata.get('permissions', [])),
+    }
+    set_role_setting_json(role.id, 'meta', payload)
+    return payload
+
+
+def serialize_role(role):
+    metadata = get_role_metadata(role)
+    return {
+        "id": role.id,
+        "name": role.name,
+        "badge_color": role.badge_color,
+        "badge_icon": role.badge_icon,
+        "system_role": metadata.get('system_role', False),
+        "dashboard_flavor": metadata.get('dashboard_flavor', DEFAULT_DASHBOARD_FLAVOR),
+        "permissions": metadata.get('permissions', []),
+    }
+
+
+def get_user_permissions(user):
+    if not user:
+        return []
+    permissions = set()
+    for role in user.roles:
+        permissions.update(get_role_metadata(role).get('permissions', []))
+    return sorted(permissions)
+
+
+def user_has_permission(user, permission_key):
+    return permission_key in set(get_user_permissions(user))
+
+
+def user_has_any_permission(user, permission_keys):
+    effective_permissions = set(get_user_permissions(user))
+    return any(permission in effective_permissions for permission in permission_keys)
+
+
+def get_user_dashboard_flavor(user):
+    if not user:
+        return DEFAULT_DASHBOARD_FLAVOR
+
+    role_flavors = []
+    for role in user.roles:
+        metadata = get_role_metadata(role)
+        flavor = metadata.get('dashboard_flavor') or DEFAULT_DASHBOARD_FLAVOR
+        if flavor != DEFAULT_DASHBOARD_FLAVOR:
+            role_flavors.append(flavor)
+
+    if role_flavors:
+        return role_flavors[0]
+    return DEFAULT_DASHBOARD_FLAVOR
+
+
+def serialize_permission_catalog():
+    return PERMISSION_DEFINITIONS
+
+
 def get_user_display_name(user):
     if not user:
         return None
@@ -1085,15 +1195,9 @@ def serialize_authenticated_user(user):
         "bio": user.bio,
         "avatar": user.avatar,
         "banner": user.banner,
-        "roles": [
-            {
-                "id": role.id,
-                "name": role.name,
-                "badge_color": role.badge_color,
-                "badge_icon": role.badge_icon,
-            }
-            for role in user.roles
-        ]
+        "roles": [serialize_role(role) for role in user.roles],
+        "permissions": get_user_permissions(user),
+        "dashboard_flavor": get_user_dashboard_flavor(user),
     }
 
 
@@ -1352,15 +1456,15 @@ def fetch_latest_steam_achievement_event(account, presence=None):
 
 
 def can_manage_music(user):
-    if not user:
-        return False
-    return any(role.name.lower() in ['admin', 'developer', 'producer'] for role in user.roles)
+    return user_has_permission(user, 'manage_music')
 
 
 def can_manage_bedriftsmeldinger(user):
-    if not user:
-        return False
-    return any(role.name.lower() in ['admin', 'developer', 'producer'] for role in user.roles)
+    return user_has_any_permission(user, [
+        'publish_bedriftsmeldinger',
+        'edit_bedriftsmeldinger',
+        'delete_bedriftsmeldinger',
+    ])
 
 
 def serialize_music_song(song):
@@ -3756,8 +3860,8 @@ def upload_song_old():
     current_user_id = get_jwt_identity()
     user = User.query.get(int(current_user_id))
     
-    if not check_user_rank(user, allowed_ranks_for_song_management):
-        return jsonify({"msg": "Insufficient rank to upload songs."}), 403
+    if not can_manage_music(user):
+        return jsonify({"msg": "Insufficient permission to upload songs."}), 403
 
     if 'audio_file' not in request.files:
         return jsonify({"msg": "No file part"}), 400
@@ -3817,8 +3921,8 @@ def delete_song(song_id):
     current_user_id = get_jwt_identity()
     user = User.query.get(int(current_user_id))
     
-    if not check_user_rank(user, allowed_ranks_for_song_management):
-        return jsonify({"msg": "Insufficient rank to delete songs."}), 403
+    if not can_manage_music(user):
+        return jsonify({"msg": "Insufficient permission to delete songs."}), 403
 
     song = Song.query.get(song_id)
     if not song:
@@ -3838,8 +3942,8 @@ def upload_song():
     current_user_id = get_jwt_identity()
     user = User.query.get(int(current_user_id))
     
-    if not check_user_rank(user, allowed_ranks_for_song_management):
-        return jsonify({"msg": "Insufficient rank to upload songs."}), 403
+    if not can_manage_music(user):
+        return jsonify({"msg": "Insufficient permission to upload songs."}), 403
 
     if 'audio_file' not in request.files:
         return jsonify({"msg": "No file part"}), 400
@@ -4548,19 +4652,14 @@ def get_users():
     users = User.query.all()
     users_list = []
     for user in users:
-        # Build a list of role objects
-        user_roles = [{
-            "id": role.id,
-            "name": role.name,
-            "badge_icon": role.badge_icon,
-            "badge_color": role.badge_color
-        } for role in user.roles]
+        user_roles = [serialize_role(role) for role in user.roles]
 
         users_list.append({
             'id': user.id,
             'username': user.username if user.username else '',
             'email': user.email if user.email else '',
-            # Include the user's roles here
+            'permissions': get_user_permissions(user),
+            'dashboard_flavor': get_user_dashboard_flavor(user),
             'roles': user_roles
         })
     return jsonify({'users': users_list}), 200
@@ -4574,13 +4673,8 @@ def get_users():
 @jwt_required()
 def get_roles():
     roles = Role.query.all()
-    roles_list = [{
-        'id': role.id,
-        'name': role.name,
-        'badge_icon': role.badge_icon,
-        'badge_color': role.badge_color
-    } for role in roles]
-    return jsonify({'roles': roles_list}), 200
+    roles_list = [serialize_role(role) for role in roles]
+    return jsonify({'roles': roles_list, 'permission_catalog': serialize_permission_catalog()}), 200
 # ===================== END get_roles ENDPOINT =====================
 
 # ===================== START update_user_roles ENDPOINT =====================
@@ -4589,8 +4683,8 @@ def get_roles():
 def update_user_roles():
     current_user_id = get_jwt_identity()
     admin_user = User.query.get(int(current_user_id))
-    if not admin_user or not any(role.name.lower() in ['admin', 'developer'] for role in admin_user.roles):
-        return jsonify({"msg": "Only admins or developers can update user roles"}), 403
+    if not admin_user or not user_has_any_permission(admin_user, ['manage_users', 'manage_roles']):
+        return jsonify({"msg": "Only users with role management access can update user roles"}), 403
 
     data = request.get_json()
     user_id_to_update = data.get('user_id')
@@ -4621,8 +4715,7 @@ def update_user_roles():
     try:
         sio_client.connect('http://localhost:3000') # Replace if needed
         print("Flask backend: Successfully connected.")
-        roles = [{"id": role.id, "name": role.name, "badge_icon": role.badge_icon, "badge_color": role.badge_color}
-                 for role in user.roles]
+        roles = [serialize_role(role) for role in user.roles]
         print("Flask backend: Emitting 'roleUpdateFromBackend' event...")
         sio_client.emit('roleUpdateFromBackend', {'userId': str(user.id), 'roles': roles}) # Ensure userId is a string
         print("Flask backend: 'roleUpdateFromBackend' event emitted.")
@@ -4640,8 +4733,7 @@ def update_user_roles():
         "msg": "User roles updated successfully",
         "updatedUser": {
             "id": user.id,
-            "roles": [{"id": role.id, "name": role.name, "badge_icon": role.badge_icon, "badge_color": role.badge_color}
-                      for role in user.roles]
+            "roles": [serialize_role(role) for role in user.roles]
         }
     }), 200
 
@@ -4653,8 +4745,8 @@ def update_user_roles():
 def demote_user():
     current_user_id = get_jwt_identity()
     admin_user = User.query.get(int(current_user_id))
-    if not any(role.name.lower() in ['admin', 'developer'] for role in admin_user.roles):
-        return jsonify({"msg": "Only admins or developers can demote users"}), 403
+    if not user_has_any_permission(admin_user, ['manage_users', 'manage_roles']):
+        return jsonify({"msg": "Only users with role management access can demote users"}), 403
 
     data = request.get_json()
     user_id = data.get('user_id')
@@ -4678,12 +4770,7 @@ def demote_user():
     user_to_demote.roles.remove(role_obj)
     db.session.commit()
 
-    updated_roles = [{
-        "id": role.id,
-        "name": role.name,
-        "badge_icon": role.badge_icon,
-        "badge_color": role.badge_color,
-    } for role in user_to_demote.roles]
+    updated_roles = [serialize_role(role) for role in user_to_demote.roles]
 
     # Optional: Emit a websocket event to notify connected clients of the change
     sio_client = py_socketio.Client()
@@ -4715,14 +4802,14 @@ def create_role():
     current_user_id = get_jwt_identity()
     admin_user = User.query.get(int(current_user_id))
 
-    # Ensure only users with the 'Admin' or 'Developer' role can add roles
-    if not any(role.name.lower() in ['admin', 'developer'] for role in admin_user.roles):
-        return jsonify({"msg": "Only Admins or Developers can create roles"}), 403
+    if not user_has_permission(admin_user, 'manage_roles'):
+        return jsonify({"msg": "Only users with role management access can create roles"}), 403
 
     data = request.get_json()
     role_name = normalize_role_name(data.get("name"))
     badge_icon = data.get("badge_icon")
     badge_color = data.get("badge_color")
+    dashboard_flavor = data.get("dashboard_flavor") or DEFAULT_DASHBOARD_FLAVOR
 
     if not role_name:
         return jsonify({"msg": "Role name is required"}), 400
@@ -4731,24 +4818,20 @@ def create_role():
     if existing_role:
         return jsonify({
             "msg": f"Role '{existing_role.name}' already exists",
-            "role": {
-                "id": existing_role.id,
-                "name": existing_role.name,
-                "badge_icon": existing_role.badge_icon,
-                "badge_color": existing_role.badge_color
-            }
+            "role": serialize_role(existing_role)
         }), 409
 
     new_role = Role(name=role_name, badge_icon=badge_icon, badge_color=badge_color)
     db.session.add(new_role)
+    db.session.flush()
+    set_role_metadata(new_role, {
+        "system_role": False,
+        "dashboard_flavor": dashboard_flavor,
+        "permissions": [],
+    })
     db.session.commit()
 
-    return jsonify({"msg": "Role created successfully", "role": {
-        "id": new_role.id,
-        "name": new_role.name,
-        "badge_icon": new_role.badge_icon,
-        "badge_color": new_role.badge_color
-    }}), 201
+    return jsonify({"msg": "Role created successfully", "role": serialize_role(new_role)}), 201
 
 
 # Endpoint to delete a role
@@ -4757,21 +4840,39 @@ def create_role():
 def delete_role(role_id):
     current_user_id = get_jwt_identity()
     admin_user = User.query.get(int(current_user_id))
-    # Allow deletion only if the user has the Admin or Developer role
-    if not any(role.name.lower() in ['admin', 'developer'] for role in admin_user.roles):
-        return jsonify({"msg": "Only Admins or Developers can delete roles"}), 403
+    if not user_has_permission(admin_user, 'manage_roles'):
+        return jsonify({"msg": "Only users with role management access can delete roles"}), 403
 
     role = Role.query.get(role_id)
     if not role:
         return jsonify({"msg": "Role not found"}), 404
 
+    if get_role_metadata(role).get('system_role'):
+        return jsonify({"msg": "System roles cannot be deleted"}), 400
+
     # Optional: Prevent deletion if the role is assigned to any user
     if role.users:
         return jsonify({"msg": "Role is assigned to users. Unassign before deletion."}), 400
 
+    role_meta_setting = Setting.query.filter_by(key=get_role_setting_key(role.id, 'meta')).first()
+    if role_meta_setting:
+        db.session.delete(role_meta_setting)
+
     db.session.delete(role)
     db.session.commit()
     return jsonify({"msg": "Role deleted successfully"}), 200
+
+
+register_role_permission_routes(
+    app,
+    User=User,
+    Role=Role,
+    db=db,
+    serialize_role=serialize_role,
+    get_role_metadata=get_role_metadata,
+    set_role_metadata=set_role_metadata,
+    normalize_permission_keys=normalize_permission_keys,
+)
 
 
 # GET fitte_points from User table
@@ -6230,7 +6331,10 @@ def delete_bedriftsmelding(melding_id):
     return jsonify({'message': 'Deleted'}), 200
 
 
-from mini_games.ClickerApi import clicker_api, init_db
+try:
+    from mini_games.ClickerApi import clicker_api, init_db
+except ModuleNotFoundError:
+    from Backend.mini_games.ClickerApi import clicker_api, init_db
 init_db(db, User)  # Pass both db and User model
 app.register_blueprint(clicker_api)
 # -------------------------
