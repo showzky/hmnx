@@ -752,7 +752,7 @@ def openxbl_api_get(path, params=None, auth_key=None, use_contract=False):
         headers['X-Contract'] = '100'
 
     response = requests.get(
-        f"https://xbl.io/api/v2/{path.lstrip('/')}",
+        f"https://api.xbl.io/api/v2/{path.lstrip('/')}",
         params=params,
         headers=headers,
         timeout=8,
