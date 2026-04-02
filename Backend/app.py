@@ -961,7 +961,7 @@ def claim_openxbl_app_code(code):
         raise RuntimeError('OPENXBL_APP_PUBLIC_KEY is not configured')
 
     response = requests.post(
-        'https://xbl.io/app/claim',
+        'https://api.xbl.io/app/claim',
         json={
             'code': code,
             'app_key': app_public_key,
