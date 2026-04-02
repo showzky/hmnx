@@ -2774,9 +2774,14 @@ def xbox_connection_callback():
         print("XBOX_DEBUG_PROFILE_SUCCESS:", xbox_profile)
     except (requests.RequestException, ValueError) as exc:
         print("XBOX_DEBUG_PROFILE_FETCH_FAILED:", repr(exc))
-        return redirect(f"{frontend_url}/dashboard?connection_error=xbox_profile_failed_account")
+        xbox_profile = normalize_xbox_profile(_claim_payload)
+        print("XBOX_DEBUG_PROFILE_FROM_CLAIM:", xbox_profile)
 
     provider_account_id = xbox_profile.get('xuid')
+    if not provider_account_id:
+        xbox_profile = normalize_xbox_profile(_claim_payload)
+        provider_account_id = xbox_profile.get('xuid')
+        print("XBOX_DEBUG_PROFILE_FALLBACK_CLAIM:", xbox_profile)
     if not provider_account_id:
         print("XBOX_DEBUG_PROFILE_EMPTY_XUID:", xbox_profile)
         return redirect(f"{frontend_url}/dashboard?connection_error=xbox_profile_failed_empty")
