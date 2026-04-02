@@ -514,7 +514,7 @@ class ConnectedAccount(db.Model):
     def __repr__(self):
         return f'<ConnectedAccount {self.provider}:{self.provider_account_id}>'
 # Define which ranks are allowed to manage songs
-allowed_ranks_for_song_management = ['developer', 'producer']
+allowed_ranks_for_song_management = ['admin', 'developer', 'producer']
 
 def check_user_rank(user, allowed_ranks):
     # Convert both the allowed list and role names to lowercase for case-insensitive comparison.
@@ -1352,6 +1352,12 @@ def fetch_latest_steam_achievement_event(account, presence=None):
 
 
 def can_manage_music(user):
+    if not user:
+        return False
+    return any(role.name.lower() in ['admin', 'developer', 'producer'] for role in user.roles)
+
+
+def can_manage_bedriftsmeldinger(user):
     if not user:
         return False
     return any(role.name.lower() in ['admin', 'developer', 'producer'] for role in user.roles)
@@ -6152,7 +6158,7 @@ def get_single_bedriftsmelding(melding_id):
 def create_bedriftsmelding():
     current_user_id = int(get_jwt_identity())
     user = User.query.get(current_user_id)
-    if not user or not any(r.name.lower() in ['admin', 'developer'] for r in user.roles):
+    if not can_manage_bedriftsmeldinger(user):
         return jsonify({'message': 'Unauthorized'}), 403
 
     data = request.get_json()
@@ -6189,7 +6195,7 @@ def create_bedriftsmelding():
 def update_bedriftsmelding(melding_id):
     current_user_id = int(get_jwt_identity())
     user = User.query.get(current_user_id)
-    if not user or not any(r.name.lower() in ['admin', 'developer'] for r in user.roles):
+    if not can_manage_bedriftsmeldinger(user):
         return jsonify({'message': 'Unauthorized'}), 403
 
     m = Bedriftsmelding.query.get_or_404(melding_id)
@@ -6215,7 +6221,7 @@ def update_bedriftsmelding(melding_id):
 def delete_bedriftsmelding(melding_id):
     current_user_id = int(get_jwt_identity())
     user = User.query.get(current_user_id)
-    if not user or not any(r.name.lower() in ['admin', 'developer'] for r in user.roles):
+    if not can_manage_bedriftsmeldinger(user):
         return jsonify({'message': 'Unauthorized'}), 403
 
     m = Bedriftsmelding.query.get_or_404(melding_id)
