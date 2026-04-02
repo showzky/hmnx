@@ -913,6 +913,7 @@ def normalize_xbox_achievement_item(item, fallback_title=None):
 
 def fetch_current_xbox_profile(auth_key=None, use_contract=False):
     payload = openxbl_api_get('account', auth_key=auth_key, use_contract=use_contract)
+    print("XBOX_DEBUG_PROFILE_RAW:", payload)
     people = payload.get('people', []) or payload.get('profileUsers', []) or []
     if people:
         return normalize_xbox_profile(people[0])
