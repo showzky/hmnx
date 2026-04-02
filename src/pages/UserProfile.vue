@@ -82,9 +82,9 @@
                     <div class="conn-icon" :class="c.cls">{{ c.abbr }}</div>
                     <div class="conn-info">
                       <div class="conn-name">{{ c.name }}</div>
-                      <div class="conn-user">Ikke tilkoblet</div>
+                      <div class="conn-user">{{ user.connected_accounts?.[c.provider]?.display_name || 'Ikke tilkoblet' }}</div>
                     </div>
-                    <div class="conn-dot cd-off"></div>
+                    <div class="conn-dot" :class="user.connected_accounts?.[c.provider] ? 'cd-on' : 'cd-off'"></div>
                   </div>
                 </div>
               </div>
@@ -161,7 +161,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
-import { fetchUsers } from '@/services/userService'
+import { getUserById } from '@/services/userService'
 import RankCard from '@/components/RankCard.vue'
 
 const TABS = [
@@ -176,9 +176,9 @@ const BADGE_CLASS   = {
   producer: 'pb-green', junior: 'pb-gold', member: 'pb-muted', testrolle: 'pb-purple',
 }
 const CONNECTIONS = [
-  { id: 1, name: 'Steam',   abbr: 'S', cls: 'ci-s' },
-  { id: 2, name: 'Xbox',    abbr: 'X', cls: 'ci-x' },
-  { id: 3, name: 'Discord', abbr: 'D', cls: 'ci-d' },
+  { id: 1, name: 'Steam',   abbr: 'S', cls: 'ci-s', provider: 'steam' },
+  { id: 2, name: 'Xbox',    abbr: 'X', cls: 'ci-x', provider: 'xbox' },
+  { id: 3, name: 'Discord', abbr: 'D', cls: 'ci-d', provider: 'discord' },
 ]
 const ACTIVITY = [
   { id: 1, dot: 'ad-m', text: 'Logget inn for første gang · <strong>Velkommen, pasient</strong>', time: 'jan 2024' },
@@ -229,10 +229,11 @@ function badgeColorStyle(badgeColor) {
 
 onMounted(async () => {
   try {
-    const res = await fetchUsers()
-    user.value = res.data.users.find(u => u.id === +route.params.userId) || null
+    const res = await getUserById(route.params.userId)
+    user.value = res.data
   } catch (e) {
     console.error('Profile load error:', e)
+    user.value = null
   } finally {
     loading.value = false
   }

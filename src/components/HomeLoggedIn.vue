@@ -37,8 +37,10 @@
                 <div v-if="!nowPlaying.length" class="card empty-txt">Ingen gaming-aktivitet ennå.</div>
                 <div v-for="p in nowPlaying" :key="p.username" class="np-card" :class="{ playing: p.online }">
                   <div class="np-top">
-                    <div class="av av-sm" :style="avatarStyleForEntity(p)">{{ p.username[0] }}<span class="np-dot" :class="{ on: p.online }"></span></div>
-                    <span class="np-name">{{ p.username }}</span>
+                    <router-link v-if="p.user_id" :to="`/users/${p.user_id}`" class="av av-sm" :style="avatarStyleForEntity(p)">{{ p.username[0] }}<span class="np-dot" :class="{ on: p.online }"></span></router-link>
+                    <div v-else class="av av-sm" :style="avatarStyleForEntity(p)">{{ p.username[0] }}<span class="np-dot" :class="{ on: p.online }"></span></div>
+                    <router-link v-if="p.user_id" :to="`/users/${p.user_id}`" class="np-name">{{ p.username }}</router-link>
+                    <span v-else class="np-name">{{ p.username }}</span>
                     <span class="plat" :class="'fp-' + p.platform">{{ p.platformLabel || (p.platform === 'offline' ? 'Offline' : p.platform) }}</span>
                   </div>
                   <div v-if="p.online" class="np-art" :style="artStyleForItem(p)">{{ p.imageUrl ? '' : p.code }}</div>
@@ -54,7 +56,8 @@
               <div class="card">
                 <div v-if="!activityFeed.length" class="empty-txt">Ingen fersk gruppeaktivitet ennå.</div>
                 <div v-for="(item, i) in activityFeed" :key="i" class="fi" :class="{ 'fi-new': item.isNew }">
-                  <div v-if="item.avatar" class="av av-sm" :style="avatarStyleForEntity(item)">{{ item.avatar }}<span v-if="item.online" class="fi-online"></span></div>
+                  <router-link v-if="item.avatar && item.user_id" :to="`/users/${item.user_id}`" class="av av-sm" :style="avatarStyleForEntity(item)">{{ item.avatar }}<span v-if="item.online" class="fi-online"></span></router-link>
+                  <div v-else-if="item.avatar" class="av av-sm" :style="avatarStyleForEntity(item)">{{ item.avatar }}<span v-if="item.online" class="fi-online"></span></div>
                   <div v-else class="fi-ico" :class="item.icoClass">{{ item.ico }}</div>
                   <div class="fi-body">
                     <div class="fi-txt" v-html="item.text"></div>
@@ -463,7 +466,8 @@ export default {
 .np-card { background: rgba(255,255,255,0.025); border: 1px solid var(--border); border-radius: 9px; padding: 12px; transition: all 0.18s; }
 .np-card.playing { border-color: rgba(40,184,96,0.2); }
 .np-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.np-name { font-size: 12px; font-weight: 600; color: var(--text-bright); font-family: var(--font-body); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np-name { font-size: 12px; font-weight: 600; color: var(--text-bright); font-family: var(--font-body); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
+.np-name:hover { color: var(--cyan); }
 .np-dot { position: absolute; bottom: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--bg); background: #2a3a4a; }
 .np-dot.on { background: var(--green); box-shadow: 0 0 5px var(--green); }
 .np-art { width: 100%; height: 52px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.2); margin-bottom: 7px; }

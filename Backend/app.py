@@ -1575,6 +1575,7 @@ def fetch_latest_steam_achievement_event(account, presence=None):
         'kind': 'game_achievement',
         'provider': 'steam',
         'providerLabel': 'Steam',
+        'actor_user_id': account.user.id,
         'actor_name': get_display_name(account.user),
         'actor_avatar_url': account.user.avatar,
         'actor_color': build_user_color(account.user),
@@ -3032,6 +3033,7 @@ def get_home_social_summary():
         current_title = presence.get('current_game_name') or (recent_primary['title'] if recent_primary else 'Ingen nylig aktivitet')
         steam_presences.append({
             "timestamp_rank": recent_primary['playtime_2weeks_minutes'] if recent_primary else 0,
+            "user_id": account_user.id,
             "username": get_display_name(account_user),
             "avatarUrl": account_user.avatar,
             "color": build_user_color(account_user),
@@ -3073,6 +3075,7 @@ def get_home_social_summary():
             'kind': 'site_achievement',
             'provider': 'hmn',
             'providerLabel': 'HMN',
+            'actor_user_id': unlock_user.id,
             'actor_name': get_display_name(unlock_user),
             'actor_avatar_url': unlock_user.avatar,
             'actor_color': build_user_color(unlock_user),
@@ -3104,6 +3107,7 @@ def get_home_social_summary():
             'kind': 'music_upload',
             'provider': 'sc',
             'providerLabel': 'SoundCloud',
+            'actor_user_id': activity_user.id,
             'actor_name': get_display_name(activity_user),
             'actor_avatar_url': activity_user.avatar,
             'actor_color': build_user_color(activity_user),
@@ -3126,6 +3130,7 @@ def get_home_social_summary():
         thumb = item.get('thumb')
         activity_feed.append({
             'isNew': True,
+            'user_id': item.get('actor_user_id'),
             'avatar': (item.get('actor_name') or 'H')[0].upper(),
             'avatarUrl': item.get('actor_avatar_url'),
             'color': item.get('actor_color'),

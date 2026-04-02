@@ -117,10 +117,10 @@
             <div v-if="!isDraft" class="add-results">
               <div v-if="memberSearch.trim() && filteredAddableUsers.length" class="member-list">
                 <div v-for="user in filteredAddableUsers" :key="user.id" class="member-row member-row-add">
-                  <div>
+                  <router-link :to="`/users/${user.id}`" class="member-link">
                     <div class="member-name">{{ user.username || user.email }}</div>
                     <div class="member-meta">{{ user.email || 'Ingen e-post registrert' }}</div>
-                  </div>
+                  </router-link>
                   <button class="btn btn-red btn-sm" @click="addMember(user)">Legg til rolle</button>
                 </div>
               </div>
@@ -128,10 +128,10 @@
             </div>
             <div v-if="members.length" class="member-list">
               <div v-for="member in members" :key="member.id" class="member-row">
-                <div>
+                <router-link :to="`/users/${member.id}`" class="member-link">
                   <div class="member-name">{{ member.username || member.email }}</div>
                   <div class="member-meta">{{ member.email || 'Ingen e-post registrert' }}</div>
-                </div>
+                </router-link>
                 <button class="btn btn-ghost btn-sm" :disabled="isDraft" @click="removeMember(member)">Fjern rolle</button>
               </div>
             </div>
@@ -467,5 +467,6 @@ export default {
 .perm-group{border:1px solid var(--border);border-radius:8px;overflow:hidden}.perm-group+.perm-group{margin-top:12px}.perm-group-title{padding:10px 12px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan)}.perm-row{display:flex;justify-content:space-between;gap:12px;padding:12px;border-top:1px solid rgba(255,255,255,.04)}.perm-row:first-of-type{border-top:none}.perm-name,.member-name{font-size:13px;font-weight:600;color:var(--text-bright);margin-bottom:4px}.perm-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--green);margin-top:2px;flex-shrink:0}
 .member-toolbar{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:14px}.member-picker-stack{display:flex;flex-direction:column;gap:10px;min-width:260px;flex:1}.member-picker-search{margin-bottom:0}.add-results{margin-bottom:14px}.member-list{display:flex;flex-direction:column;gap:8px}.member-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.02)}.member-row-add{border-color:rgba(0,184,208,.14);background:rgba(0,184,208,.04)}
 .ach-admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;margin-bottom:4px}.ach-admin-card{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.02);cursor:pointer;transition:.15s;position:relative;overflow:hidden}.ach-admin-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px}.ach-admin-card.legendary{border-color:rgba(216,152,32,.2);background:rgba(216,152,32,.04)}.ach-admin-card.legendary::before{background:var(--gold)}.ach-admin-card.epic{border-color:rgba(112,80,216,.2);background:rgba(112,80,216,.04)}.ach-admin-card.epic::before{background:#9070f0}.ach-admin-card.rare{border-color:rgba(0,184,208,.18);background:rgba(0,184,208,.03)}.ach-admin-card.rare::before{background:var(--cyan)}.ach-admin-card.common::before{background:rgba(255,255,255,.15)}.ach-admin-card:hover{border-color:var(--border2);background:rgba(255,255,255,.04);transform:translateX(2px)}.ach-admin-card.is-selected{border-color:rgba(200,16,46,.3);background:rgba(200,16,46,.06)}.ach-checkbox{display:none}.ach-admin-icon{width:36px;height:36px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;background:rgba(255,255,255,.05);border:1px solid var(--border);overflow:hidden}.ach-admin-icon img{width:100%;height:100%;object-fit:contain;border-radius:6px}.ach-admin-info{flex:1;min-width:0}.ach-admin-name{font-size:13px;font-weight:600;color:var(--text-bright);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}.ach-admin-meta{display:flex;align-items:center;gap:6px}.ach-admin-date{font-size:10px;color:var(--text-muted);font-family:var(--font-display);letter-spacing:.04em}.ach-admin-check{min-width:28px;height:20px;border-radius:999px;background:var(--red);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px rgba(200,16,46,.4)}
+.member-link{text-decoration:none;color:inherit;flex:1;min-width:0}.member-link:hover .member-name{color:var(--cyan)}
 @media (max-width:1100px){.rp-layout,.editor-grid{grid-template-columns:1fr}}@media (max-width:720px){.field-grid{grid-template-columns:1fr}.member-picker{min-width:100%}.member-row{flex-direction:column;align-items:stretch}}
 </style>
