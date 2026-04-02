@@ -2737,6 +2737,9 @@ def steam_connection_callback():
 
 @app.route('/api/connections/xbox/callback', methods=['GET'])
 def xbox_connection_callback():
+    print("XBOX_DEBUG_CALLBACK_HIT:", request.url)
+    print("XBOX_DEBUG_CALLBACK_ARGS:", dict(request.args))
+    print("XBOX_DEBUG_CALLBACK_SESSION:", dict(session))
     frontend_url = get_frontend_base_url()
     if not get_openxbl_app_public_key():
         return redirect(f"{frontend_url}/dashboard?connection_error=xbox_not_configured")
