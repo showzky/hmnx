@@ -2764,6 +2764,7 @@ def xbox_connection_callback():
         print("XBOX_DEBUG_CLAIM_START:", auth_code[:12] + "..." if isinstance(auth_code, str) else auth_code)
         app_key, _claim_payload = claim_openxbl_app_code(auth_code)
         print("XBOX_DEBUG_CLAIM_SUCCESS:", repr(app_key))
+        print("XBOX_DEBUG_CLAIM_PAYLOAD:", _claim_payload)
         xbox_profile = fetch_current_xbox_profile(auth_key=app_key, use_contract=True) or {}
         print("XBOX_DEBUG_PROFILE_SUCCESS:", xbox_profile)
     except (requests.RequestException, ValueError) as exc:
