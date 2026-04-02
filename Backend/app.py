@@ -85,6 +85,34 @@ cloudinary.config(
 # Available Roles Configuration
 # -------------------------
 AVAILABLE_ROLES = ['producer', 'developer', 'Admin']
+CANONICAL_ROLE_NAMES = {
+    'admin': 'Admin',
+    'developer': 'developer',
+    'producer': 'producer',
+}
+
+
+def normalize_role_name(role_name):
+    if not isinstance(role_name, str):
+        return ''
+
+    cleaned_name = role_name.strip()
+    if not cleaned_name:
+        return ''
+
+    return CANONICAL_ROLE_NAMES.get(cleaned_name.lower(), cleaned_name)
+
+
+def resolve_role_for_assignment(role_id):
+    role = Role.query.get(role_id)
+    if not role:
+        return None
+
+    canonical_name = CANONICAL_ROLE_NAMES.get(role.name.lower())
+    if not canonical_name:
+        return role
+
+    return Role.query.filter_by(name=canonical_name).first() or role
 
 # -------------------------
 # JWT Configuration: Set token expiration times
@@ -4553,19 +4581,32 @@ def get_roles():
 @app.route('/api/update-user-roles', methods=['PUT'])
 @jwt_required()
 def update_user_roles():
+    current_user_id = get_jwt_identity()
+    admin_user = User.query.get(int(current_user_id))
+    if not admin_user or not any(role.name.lower() in ['admin', 'developer'] for role in admin_user.roles):
+        return jsonify({"msg": "Only admins or developers can update user roles"}), 403
+
     data = request.get_json()
-    user_id_to_update = data.get('user_id') # Ensure you're using the correct key
-    role_ids = data.get('role_ids')       # Ensure you're using the correct key
+    user_id_to_update = data.get('user_id')
+    role_ids = data.get('role_ids')
+
+    if not user_id_to_update or not isinstance(role_ids, list) or not role_ids:
+        return jsonify({"msg": "Missing user_id or role_ids parameter"}), 400
 
     user = User.query.get(user_id_to_update)
     if not user:
         return jsonify({"msg": "User not found"}), 404
 
-    # Update user roles logic here
+    added_any_role = False
     for role_id in role_ids:
-        role = Role.query.get(role_id)
-        if role:
+        role = resolve_role_for_assignment(role_id)
+        if role and role not in user.roles:
             user.roles.append(role)
+            added_any_role = True
+
+    if not added_any_role:
+        return jsonify({"msg": "User already has the selected role"}), 200
+
     db.session.commit()
 
     # --- Real-time update using python-socketio client ---
@@ -4606,7 +4647,7 @@ def update_user_roles():
 def demote_user():
     current_user_id = get_jwt_identity()
     admin_user = User.query.get(int(current_user_id))
-    if not any(role.name in ['Admin', 'developer'] for role in admin_user.roles):
+    if not any(role.name.lower() in ['admin', 'developer'] for role in admin_user.roles):
         return jsonify({"msg": "Only admins or developers can demote users"}), 403
 
     data = request.get_json()
@@ -4669,16 +4710,28 @@ def create_role():
     admin_user = User.query.get(int(current_user_id))
 
     # Ensure only users with the 'Admin' or 'Developer' role can add roles
-    if not any(role.name in ['Admin', 'developer'] for role in admin_user.roles):
+    if not any(role.name.lower() in ['admin', 'developer'] for role in admin_user.roles):
         return jsonify({"msg": "Only Admins or Developers can create roles"}), 403
 
     data = request.get_json()
-    role_name = data.get("name")
+    role_name = normalize_role_name(data.get("name"))
     badge_icon = data.get("badge_icon")
     badge_color = data.get("badge_color")
 
     if not role_name:
         return jsonify({"msg": "Role name is required"}), 400
+
+    existing_role = Role.query.filter(db.func.lower(Role.name) == role_name.lower()).first()
+    if existing_role:
+        return jsonify({
+            "msg": f"Role '{existing_role.name}' already exists",
+            "role": {
+                "id": existing_role.id,
+                "name": existing_role.name,
+                "badge_icon": existing_role.badge_icon,
+                "badge_color": existing_role.badge_color
+            }
+        }), 409
 
     new_role = Role(name=role_name, badge_icon=badge_icon, badge_color=badge_color)
     db.session.add(new_role)
@@ -4699,7 +4752,7 @@ def delete_role(role_id):
     current_user_id = get_jwt_identity()
     admin_user = User.query.get(int(current_user_id))
     # Allow deletion only if the user has the Admin or Developer role
-    if not any(role.name in ['Admin', 'developer'] for role in admin_user.roles):
+    if not any(role.name.lower() in ['admin', 'developer'] for role in admin_user.roles):
         return jsonify({"msg": "Only Admins or Developers can delete roles"}), 403
 
     role = Role.query.get(role_id)

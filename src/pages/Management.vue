@@ -360,9 +360,20 @@ export default {
         user_id: this.userRoleUpdate.selectedUser,
         role_ids: [this.userRoleUpdate.newRole]
       })
-      .then(res => {
+      .then(async res => {
         this.updateUserMessage = res.data.msg;
         this.updateUserSuccess = true;
+
+        this.fetchUsersList();
+
+        const updatedRoles = res.data?.updatedUser?.roles;
+        if (Array.isArray(updatedRoles)) {
+          this.selectedUserRoles = updatedRoles;
+        }
+
+        if (String(this.userRoleUpdate.selectedUser) === String(this.auth.user?.id)) {
+          await this.auth.hydrateFromToken();
+        }
       })
       .catch(err => {
         console.error('Error updating user role:', err);
