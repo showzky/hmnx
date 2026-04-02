@@ -2637,6 +2637,7 @@ def start_xbox_connection():
         return jsonify({"msg": "User not found"}), 401
 
     app_public_key = get_openxbl_app_public_key()
+    print("XBOX_DEBUG_PUBLIC_KEY:", repr(app_public_key))
     if not app_public_key:
         return redirect(f"{get_frontend_base_url()}/dashboard?connection_error=xbox_not_configured")
 

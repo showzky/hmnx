@@ -455,19 +455,22 @@ const connections = computed(() => [
 const recentGames = computed(() => recentGamesDynamic.value)
 const allGames = computed(() => allGamesDynamic.value)
 const unlockedAchievements = computed(() => achievements.value.filter(item => item.achieved !== false))
-const recentAchievements = computed(() => {
+const recentAchievementSummaryItems = computed(() => {
   const items = Array.isArray(recentAchievementsSummary.value?.items) ? recentAchievementsSummary.value.items : []
-  if (items.length) {
-    return items.map(item => ({
-      id: item.id,
-      title: item.title,
-      game: item.game,
-      icon: item.icon,
-      isImg: Boolean(item.is_img),
-      iconClass: item.icon_class || 'air',
-      platform: item.platform,
-      platformClass: item.platform_class || 'aph',
-    }))
+  return items.map(item => ({
+    id: item.id,
+    title: item.title,
+    game: item.game,
+    icon: item.icon,
+    isImg: Boolean(item.is_img),
+    iconClass: item.icon_class || 'air',
+    platform: item.platform,
+    platformClass: item.platform_class || 'aph',
+  }))
+})
+const recentAchievements = computed(() => {
+  if (recentAchievementSummaryItems.value.length) {
+    return recentAchievementSummaryItems.value
   }
   return unlockedAchievements.value
     .slice(0, 4)
@@ -486,7 +489,10 @@ const recentAchievements = computed(() => {
       }
     })
 })
-const showRecentAchievementsEmptyState = computed(() => unlockedAchievements.value.length === 0)
+const hasAnyRecentAchievements = computed(() => (
+  recentAchievementSummaryItems.value.length > 0 || unlockedAchievements.value.length > 0
+))
+const showRecentAchievementsEmptyState = computed(() => !hasAnyRecentAchievements.value)
 const recentAchievementsDisclaimer = computed(() => {
   if (showRecentAchievementsEmptyState.value) return ''
   return recentAchievementsSummary.value?.disclaimer || ''
