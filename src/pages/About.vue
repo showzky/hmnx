@@ -48,7 +48,6 @@
         <div class="sh mb-sm">
           <span class="sh-title">Vårt <em>team</em></span>
           <div class="sh-line"></div>
-          <span class="sh-tag">dynamisk · administreres fra admin</span>
         </div>
         <div class="team-grid mb-lg">
           <div
@@ -67,34 +66,6 @@
                 class="badge"
                 :class="badge.cls"
               >{{ badge.label }}</span>
-            </div>
-          </div>
-          <div
-            v-for="n in classifiedSlots"
-            :key="'cls-' + n"
-            class="team-card classified"
-          >
-            <div class="team-avatar">?</div>
-            <div class="team-name">???</div>
-            <div class="team-classified-label">Klassifisert · § 9.1</div>
-            <div class="team-badges" style="margin-top:8px;">
-              <span class="badge badge-locked">Tilgang nektet</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Timeline -->
-        <div class="sh mb-sm">
-          <span class="sh-title">Historien <em>hittil</em></span>
-          <div class="sh-line"></div>
-        </div>
-        <div class="timeline mb-lg">
-          <div v-for="(item, i) in timeline" :key="i" class="tl-item">
-            <div class="tl-dot">{{ item.icon }}</div>
-            <div class="tl-content">
-              <div class="tl-date">{{ item.date }}</div>
-              <div class="tl-title">{{ item.title }}</div>
-              <div class="tl-desc">{{ item.desc }}</div>
             </div>
           </div>
         </div>
@@ -128,22 +99,12 @@ export default {
   data() {
     return {
       team: [],
-      timeline: [
-        { icon: '🧠', date: '2024 — Starten', title: 'Født i kaos', desc: '"Vi møttes faktisk først i 2024 alle sammen face to face." Ingen visste hva de hadde begynt på.' },
-        { icon: '🔥', date: 'August 2024 — REF: HMN-001', title: 'Den store Sunndalsøra-konspirasjonen', desc: 'Hva skjedde egentlig der oppe? Verden vil aldri vite. Etterforskning pågår. Journalen er forseglet.' },
-        { icon: '💻', date: '2025 — Nå', title: 'Portalen åpner', desc: 'HMN Mental Pasienter lanserer offisielt. § 7.7 garanterer ingenting. Årsaken til deployment-feilen er fortsatt under utredning.' },
-      ],
       values: [
         { icon: '🤝', title: 'Forståelse', description: 'Vi lytter først, diagnostiserer senere. Eller ikke i det hele tatt. Begge deler er greit.' },
         { icon: '👁️', title: 'Åpenhet', description: 'Ingen skjulte agendaer eller kostnader. Journalene er tilgjengelig for alle involverte parter.' },
         { icon: '💡', title: 'Innovasjon', description: 'Kombinerer tradisjonell og digital hjelp. Begge er like ubrukelige, men på en sjarmerende måte.' },
       ],
     };
-  },
-  computed: {
-    classifiedSlots() {
-      return Math.max(0, 6 - this.team.length);
-    },
   },
   methods: {
     async fetchTeamMembers() {
@@ -322,8 +283,6 @@ export default {
   transform: translateY(-3px);
   box-shadow: 0 16px 40px rgba(0,0,0,0.4);
 }
-.team-card.classified { opacity: 0.5; }
-.team-card.classified:hover { transform: none; }
 .team-avatar {
   width: 72px; height: 72px;
   border-radius: 50%;
@@ -375,15 +334,6 @@ export default {
   justify-content: center;
   flex-wrap: wrap;
 }
-.team-classified-label {
-  font-size: 13px;
-  color: rgba(255,255,255,0.2);
-  font-family: var(--font-display);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-top: 8px;
-}
 
 /* ── Badges ── */
 .badge {
@@ -400,58 +350,6 @@ export default {
 .badge-red    { background: rgba(200,16,46,0.12);   color: var(--red2);  border: 1px solid rgba(200,16,46,0.22); }
 .badge-gold   { background: rgba(216,152,32,0.1);   color: var(--gold);  border: 1px solid rgba(216,152,32,0.2); }
 .badge-green  { background: rgba(40,184,96,0.1);    color: var(--green); border: 1px solid rgba(40,184,96,0.2); }
-.badge-locked { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.2); border: 1px solid var(--border); }
-
-/* ── Timeline ── */
-.timeline { display: flex; flex-direction: column; gap: 0; }
-.tl-item {
-  display: flex;
-  gap: 20px;
-  padding-bottom: 28px;
-  position: relative;
-}
-.tl-item:last-child { padding-bottom: 0; }
-.tl-item:not(:last-child)::before {
-  content: '';
-  position: absolute;
-  left: 15px; top: 32px; bottom: 0;
-  width: 1px;
-  background: var(--border);
-}
-.tl-dot {
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  background: var(--surface);
-  border: 1px solid var(--border2);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-}
-.tl-content { flex: 1; padding-top: 4px; }
-.tl-date {
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: 0.08em;
-  font-family: var(--font-display);
-  font-weight: 700;
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-.tl-title {
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--bright);
-  margin-bottom: 4px;
-}
-.tl-desc {
-  font-size: 13px;
-  color: rgba(255,255,255,0.3);
-  line-height: 1.65;
-  font-family: var(--font-body);
-}
 
 /* ── Values Grid ── */
 .values-grid {
