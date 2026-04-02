@@ -6336,18 +6336,28 @@ def delete_user_achievement():
 @app.route('/api/user/<int:user_id>/achievements', methods=['GET'])
 @jwt_required()
 def get_any_user_achievements(user_id):
-    print("JWT identity:", get_jwt_identity())
-    # Optionally check if current user is admin/dev
-    requesting_user = User.query.get(int(get_jwt_identity()))
-    if not any(role.name.lower() in ['admin', 'developer'] for role in requesting_user.roles):
-        return jsonify({"msg": "Unauthorized"}), 403
+    target_user = User.query.get(user_id)
+    if not target_user:
+        return jsonify({"msg": "User not found"}), 404
 
-    unlocked = UserAchievement.query.filter_by(user_id=user_id).all()
-    result = [{
-        "achievement_id": ua.achievement.id,
-        "name": ua.achievement.name,
-        "unlocked_at": ua.unlocked_at.isoformat() if ua.unlocked_at else None,
-    } for ua in unlocked]
+    all_achievements = Achievement.query.all()
+    unlocked_map = {
+        ua.achievement_id: ua.unlocked_at
+        for ua in UserAchievement.query.filter_by(user_id=user_id)
+    }
+    result = []
+    for ach in all_achievements:
+        unlocked_at = unlocked_map.get(ach.id)
+        result.append({
+            "id": ach.id,
+            "title": ach.name,
+            "description": ach.description,
+            "icon": ach.icon,
+            "achieved": ach.id in unlocked_map,
+            "unlocked_at": unlocked_at.isoformat() if unlocked_at else None,
+            "rarity": ach.rarity,
+            "glow_color": ach.glow_color,
+        })
     return jsonify(result), 200
 
 

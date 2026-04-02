@@ -69,7 +69,7 @@
               <div class="sch"><span class="sch-t">Pasientstatus</span></div>
               <div class="stat-rows">
                 <div class="sr"><span class="sr-label">Krenkethetsnivå</span><span class="sr-val c-red">{{ krenketDisplay }}</span></div>
-                <div class="sr"><span class="sr-label">Achievements</span><span class="sr-val c-cyan">—</span></div>
+                <div class="sr"><span class="sr-label">Achievements</span><span class="sr-val c-cyan">{{ unlockedCount }}</span></div>
                 <div class="sr"><span class="sr-label">Hendelser deltatt</span><span class="sr-val c-gold">—</span></div>
                 <div class="sr"><span class="sr-label">Uforklarte hendelser</span><span class="sr-val c-green">∞</span></div>
               </div>
@@ -131,10 +131,27 @@
         </div>
 
         <!-- ── ACHIEVEMENTS ── -->
-        <div v-show="activeTab === 'achievements'" class="tab-single">
+        <div v-show="activeTab === 'achievements'" class="tab-single tab-wide">
           <div class="mc">
-            <div class="mc-head"><span class="mc-title">Achievements</span><span class="mc-meta">0 låst opp</span></div>
-            <div class="empty-state">Ingen achievements låst opp ennå. Gjør noe interessant.</div>
+            <div class="mc-head">
+              <span class="mc-title">Achievements</span>
+              <span class="mc-meta">{{ unlockedCount }} låst opp</span>
+            </div>
+            <div v-if="achievementsLoading" class="empty-state">Laster achievements…</div>
+            <div v-else-if="!achievements.length" class="empty-state">Ingen achievements ennå.</div>
+            <div v-else class="ach-grid">
+              <Achievement
+                v-for="a in achievements"
+                :key="a.id"
+                :title="a.title"
+                :description="a.description"
+                :icon="a.icon"
+                :achieved="a.achieved"
+                :rarity="a.rarity"
+                :glow_color="a.glow_color"
+                :unlocked_at="a.unlocked_at"
+              />
+            </div>
           </div>
         </div>
 
@@ -159,10 +176,12 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { getUserById } from '@/services/userService'
 import RankCard from '@/components/RankCard.vue'
+import Achievement from '@/components/Achievement.vue'
+import axios from '@/axios'
 
 const TABS = [
   { id: 'oversikt',     label: 'Oversikt' },
@@ -184,11 +203,13 @@ const ACTIVITY = [
   { id: 1, dot: 'ad-m', text: 'Logget inn for første gang · <strong>Velkommen, pasient</strong>', time: 'jan 2024' },
 ]
 
-const route     = useRoute()
-const auth      = useAuthStore()
-const user      = ref(null)
-const loading   = ref(true)
-const activeTab = ref('oversikt')
+const route              = useRoute()
+const auth               = useAuthStore()
+const user               = ref(null)
+const loading            = ref(true)
+const activeTab          = ref('oversikt')
+const achievements       = ref([])
+const achievementsLoading = ref(false)
 
 const initials     = computed(() => (user.value?.username || user.value?.email || '?').charAt(0).toUpperCase())
 const isOwnProfile = computed(() => auth.user?.id === user.value?.id)
@@ -201,6 +222,8 @@ const primaryRole = computed(() => {
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
   })[0]
 })
+
+const unlockedCount  = computed(() => achievements.value.filter(a => a.achieved).length)
 
 const krenketVal     = computed(() => Math.min(100, Math.max(0, user.value?.krenke_level || 0)))
 const krenketDisplay = computed(() => `${Math.round(krenketVal.value)}%`)
@@ -228,14 +251,25 @@ function badgeColorStyle(badgeColor) {
 }
 
 onMounted(async () => {
+  const userId = route.params.userId
   try {
-    const res = await getUserById(route.params.userId)
+    const res = await getUserById(userId)
     user.value = res.data
   } catch (e) {
     console.error('Profile load error:', e)
     user.value = null
   } finally {
     loading.value = false
+  }
+
+  achievementsLoading.value = true
+  try {
+    const res = await axios.get(`/user/${userId}/achievements`)
+    achievements.value = res.data
+  } catch (e) {
+    console.error('Achievements load error:', e)
+  } finally {
+    achievementsLoading.value = false
   }
 })
 </script>
@@ -351,6 +385,10 @@ onMounted(async () => {
 
 /* ── Empty ── */
 .empty-state { padding: 24px 16px; font-size: 14px; color: rgba(255,255,255,0.3); font-family: var(--font-body); font-style: italic; text-align: center; line-height: 1.7; }
+
+/* ── Achievements grid ── */
+.tab-wide { max-width: 100%; }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; padding: 16px; }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
