@@ -123,10 +123,45 @@
         </div>
 
         <!-- ── GAMING ── -->
-        <div v-show="activeTab === 'gaming'" class="tab-single">
-          <div class="mc">
-            <div class="mc-head"><span class="mc-title">Gaming</span><span class="mc-meta">koble til kontoer</span></div>
-            <div class="empty-state">Koble til Steam, Xbox eller Battle.net fra Innstillinger for å se gaming-statistikk her.</div>
+        <div v-show="activeTab === 'gaming'" class="tab-single tab-wide">
+          <div v-if="gamingLoading" class="mc"><div class="empty-state">Laster gaming-data…</div></div>
+          <template v-else-if="recentGames.length || allGames.length">
+            <div class="mc" v-if="recentGames.length">
+              <div class="mc-head"><span class="mc-title">Siste spilte</span></div>
+              <div class="game-grid">
+                <div v-for="game in recentGames" :key="game.id" class="gc">
+                  <div class="gc-art" :style="game.artStyle">
+                    <img v-if="game.imageUrl" :src="game.imageUrl" :alt="game.title" class="gc-art-img" />
+                    <span v-else>{{ game.code }}</span>
+                    <div class="gc-pip" :class="game.platformClass">{{ game.platform }}</div>
+                  </div>
+                  <div class="gc-body">
+                    <div class="gc-title">{{ game.title }}</div>
+                    <div class="gc-stats"><span>{{ game.leftStat }}</span><span>{{ game.rightStat }}</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="mc" v-if="allGames.length">
+              <div class="mc-head"><span class="mc-title">Alle spill</span></div>
+              <div class="game-grid">
+                <div v-for="game in allGames" :key="game.id" class="gc">
+                  <div class="gc-art" :style="game.artStyle">
+                    <img v-if="game.imageUrl" :src="game.imageUrl" :alt="game.title" class="gc-art-img" />
+                    <span v-else>{{ game.code }}</span>
+                    <div class="gc-pip" :class="game.platformClass">{{ game.platform }}</div>
+                  </div>
+                  <div class="gc-body">
+                    <div class="gc-title">{{ game.title }}</div>
+                    <div class="gc-stats"><span>{{ game.leftStat }}</span><span>{{ game.rightStat }}</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+          <div v-else class="mc">
+            <div class="mc-head"><span class="mc-title">Gaming</span></div>
+            <div class="empty-state">Ingen gaming-data tilgjengelig for denne brukeren.</div>
           </div>
         </div>
 
@@ -203,13 +238,49 @@ const ACTIVITY = [
   { id: 1, dot: 'ad-m', text: 'Logget inn for første gang · <strong>Velkommen, pasient</strong>', time: 'jan 2024' },
 ]
 
-const route              = useRoute()
-const auth               = useAuthStore()
-const user               = ref(null)
-const loading            = ref(true)
-const activeTab          = ref('oversikt')
-const achievements       = ref([])
+const route               = useRoute()
+const auth                = useAuthStore()
+const user                = ref(null)
+const loading             = ref(true)
+const activeTab           = ref('oversikt')
+const achievements        = ref([])
 const achievementsLoading = ref(false)
+const gamingSummary       = ref(null)
+const gamingLoading       = ref(false)
+
+function buildGameVisualSeed(game) {
+  const seed = Number(game?.id || 0) % 6
+  const palettes = [
+    'linear-gradient(135deg,#0a1628,#1a3a6a)',
+    'linear-gradient(135deg,#280a0a,#6a1a1a)',
+    'linear-gradient(135deg,#0a1a0a,#1a5a1a)',
+    'linear-gradient(135deg,#241019,#6b2549)',
+    'linear-gradient(135deg,#12122a,#323282)',
+    'linear-gradient(135deg,#1b1809,#6c4b13)',
+  ]
+  return palettes[seed]
+}
+
+function normalizeGame(game) {
+  return {
+    ...game,
+    leftStat: game.leftStat || game.left_stat,
+    rightStat: game.rightStat || game.right_stat,
+    platformClass: game.platformClass || game.platform_class || 'gp-s',
+    imageUrl: game.imageUrl || game.image_url || game.logo_url || null,
+    artStyle: { background: buildGameVisualSeed(game) },
+  }
+}
+
+const recentGames = computed(() => {
+  const games = gamingSummary.value?.recent_games || []
+  return games.map(normalizeGame)
+})
+
+const allGames = computed(() => {
+  const games = gamingSummary.value?.all_games || []
+  return games.map(normalizeGame)
+})
 
 const initials     = computed(() => (user.value?.username || user.value?.email || '?').charAt(0).toUpperCase())
 const isOwnProfile = computed(() => auth.user?.id === user.value?.id)
@@ -270,6 +341,25 @@ onMounted(async () => {
     console.error('Achievements load error:', e)
   } finally {
     achievementsLoading.value = false
+  }
+
+  gamingLoading.value = true
+  try {
+    const res = await axios.get(`/users/${userId}/gaming-summary`)
+    const data = res.data
+    // Merge recent_games from both steam and xbox
+    const steamGames = data.steam?.recent_games || []
+    const xboxGames = data.xbox?.recent_games || []
+    const allSteam = data.steam?.all_games || []
+    const allXbox = data.xbox?.all_games || []
+    gamingSummary.value = {
+      recent_games: [...steamGames, ...xboxGames],
+      all_games: [...allSteam, ...allXbox],
+    }
+  } catch (e) {
+    console.error('Gaming summary load error:', e)
+  } finally {
+    gamingLoading.value = false
   }
 })
 </script>
@@ -389,6 +479,22 @@ onMounted(async () => {
 /* ── Achievements grid ── */
 .tab-wide { max-width: 100%; }
 .ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; padding: 16px; }
+
+/* ── Game grid ── */
+.game-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 14px 18px; }
+.gc { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; transition: all 0.18s; }
+.gc:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,0.4); }
+.gc-art { width: 100%; aspect-ratio: 16/9; position: relative; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 900; font-size: 14px; letter-spacing: 0.04em; color: rgba(255,255,255,0.1); }
+.gc-art > span { position: relative; z-index: 1; }
+.gc-art-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.gc-pip { position: absolute; top: 5px; right: 5px; font-size: 9px; padding: 2px 6px; border-radius: 3px; font-family: var(--font-display); font-weight: 700; text-transform: uppercase; z-index: 1; }
+.gp-s { background: rgba(27,159,212,0.25); color: #4ab8e8; }
+.gp-x { background: rgba(16,124,16,0.25); color: #4ec84e; }
+.gc-body { padding: 8px 10px; }
+.gc-title { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; font-family: var(--font-body); }
+.gc-stats { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
+.gc-stats span:first-child { color: var(--text); font-weight: 500; }
+@media (max-width: 600px) { .game-grid { grid-template-columns: repeat(2, 1fr); } }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
