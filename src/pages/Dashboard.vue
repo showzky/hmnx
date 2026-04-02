@@ -188,7 +188,18 @@
               <div class="mc">
                 <div class="mc-head"><span class="mc-title">Siste achievements</span><span class="mc-meta">nylig låst opp</span></div>
                 <div v-if="recentAchievementsDisclaimer" class="mc-note">{{ recentAchievementsDisclaimer }}</div>
-                <div class="ach-grid">
+                <div v-if="showRecentAchievementsEmptyState" class="ach-empty">
+                  <div class="ach-empty-orbit"></div>
+                  <div class="ach-empty-medallion">
+                    <div class="ach-empty-core">🏆</div>
+                  </div>
+                  <div class="ach-empty-copy">
+                    <div class="ach-empty-title">Ingen achievements enda</div>
+                    <div class="ach-empty-text">Denne seksjonen fylles automatisk når du låser opp achievements i HMN Portalen, Steam eller Xbox.</div>
+                    <div class="ach-empty-subtle">Første unlock får hedersplassen her. Inntil videre er tavla mistenkelig ren.</div>
+                  </div>
+                </div>
+                <div v-else class="ach-grid">
                   <div v-for="achievement in recentAchievements" :key="achievement.id" class="ai">
                     <div class="ai-icon" :class="achievement.iconClass">
                       <img v-if="achievement.isImg" :src="achievement.icon" class="ai-icon-img" />
@@ -358,13 +369,6 @@ const fallbackAllGames = [
   { id: 6, code: 'D4', title: 'Diablo IV', leftStat: '220t', rightStat: 'S8', platform: 'Bnet', artClass: 'ga6', platformClass: 'gp-b' },
 ]
 
-const fallbackAchievements = [
-  { id: 1, title: 'Fully Automated', game: 'Satisfactory', icon: '🏆', iconClass: 'aig', platform: 'Steam', platformClass: 'aps' },
-  { id: 2, title: 'The Professional', game: 'Counter-Strike 2', icon: '🎯', iconClass: 'aic', platform: 'Steam', platformClass: 'aps' },
-  { id: 3, title: 'Unbreakable', game: 'Halo Wars 2', icon: '⚔️', iconClass: 'aigg', platform: 'Xbox', platformClass: 'apx' },
-  { id: 4, title: 'Kaosarkitekt', game: 'HMN Portalen', icon: '🔥', iconClass: 'air', platform: 'HMN', platformClass: 'aph' },
-]
-
 const fallbackActivity = [
   { id: 1, text: 'Låste opp Fully Automated i Satisfactory', time: '12m', dotClass: 'ad-g' },
   { id: 2, text: 'Bekreftet oppmøte til Olivers Party', time: '2t', dotClass: 'ad-c' },
@@ -450,6 +454,7 @@ const connections = computed(() => [
 
 const recentGames = computed(() => recentGamesDynamic.value)
 const allGames = computed(() => allGamesDynamic.value)
+const unlockedAchievements = computed(() => achievements.value.filter(item => item.achieved !== false))
 const recentAchievements = computed(() => {
   const items = Array.isArray(recentAchievementsSummary.value?.items) ? recentAchievementsSummary.value.items : []
   if (items.length) {
@@ -464,9 +469,7 @@ const recentAchievements = computed(() => {
       platformClass: item.platform_class || 'aph',
     }))
   }
-  if (!achievements.value.length) return fallbackAchievements
-  return achievements.value
-    .filter(item => item.achieved !== false)
+  return unlockedAchievements.value
     .slice(0, 4)
     .map((item, index) => {
       const rawIcon = item.icon || item.svg || ''
@@ -483,7 +486,11 @@ const recentAchievements = computed(() => {
       }
     })
 })
-const recentAchievementsDisclaimer = computed(() => recentAchievementsSummary.value?.disclaimer || '')
+const showRecentAchievementsEmptyState = computed(() => unlockedAchievements.value.length === 0)
+const recentAchievementsDisclaimer = computed(() => {
+  if (showRecentAchievementsEmptyState.value) return ''
+  return recentAchievementsSummary.value?.disclaimer || ''
+})
 
 const recentActivity = computed(() => recentActivityApi.value.length ? recentActivityApi.value.slice(0, 5) : fallbackActivity)
 const fullActivity = computed(() => recentActivityApi.value.length ? [...recentActivityApi.value, ...fallbackActivity].slice(0, 8) : fallbackActivity)
@@ -1781,6 +1788,101 @@ onBeforeUnmount(() => {
   padding: 14px 18px;
 }
 
+.ach-empty {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 14px 18px 18px;
+  padding: 20px 22px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at top left, rgba(0, 184, 208, 0.12), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(200, 16, 46, 0.12), transparent 36%),
+    linear-gradient(145deg, rgba(18, 26, 36, 0.96), rgba(13, 19, 27, 0.98));
+  overflow: hidden;
+}
+
+.ach-empty::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255,255,255,0.02), transparent 28%, transparent 72%, rgba(255,255,255,0.02));
+  pointer-events: none;
+}
+
+.ach-empty-orbit {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  left: -42px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 16px rgba(255, 255, 255, 0.015);
+  pointer-events: none;
+}
+
+.ach-empty-medallion {
+  position: relative;
+  z-index: 1;
+  width: 74px;
+  height: 74px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(216, 152, 32, 0.2), rgba(0, 184, 208, 0.12));
+  border: 1px solid rgba(216, 152, 32, 0.24);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+  flex-shrink: 0;
+}
+
+.ach-empty-core {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 16, 24, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 24px;
+}
+
+.ach-empty-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+}
+
+.ach-empty-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--bright);
+  margin-bottom: 6px;
+}
+
+.ach-empty-text {
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text);
+  max-width: 460px;
+}
+
+.ach-empty-subtle {
+  margin-top: 8px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .ai {
   display: flex;
   align-items: center;
@@ -2051,6 +2153,19 @@ onBeforeUnmount(() => {
   .ach-grid,
   .kr-stats {
     grid-template-columns: 1fr;
+  }
+
+  .ach-empty {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 18px;
+  }
+
+  .ach-empty-orbit {
+    left: auto;
+    right: -56px;
+    top: -52px;
+    transform: none;
   }
 
   .krs:not(:last-child) {
