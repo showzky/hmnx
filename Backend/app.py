@@ -30,6 +30,7 @@ import defusedxml.ElementTree as ET
 import json
 from pathlib import Path
 from soundcloud_routes import soundcloud_bp
+from steam_achievement_utils import select_latest_recent_steam_achievement
 
 # In-memory store for playlist data
 playlist_data = []
@@ -1233,7 +1234,7 @@ def fetch_steam_presence(account):
     }
 
 
-def fetch_latest_steam_achievement_event(account, presence=None):
+def _legacy_fetch_latest_steam_achievement_event(account, presence=None):
     if not account or not account.provider_account_id or not os.getenv('STEAM_WEB_API_KEY'):
         return None
 
@@ -1283,6 +1284,43 @@ def fetch_latest_steam_achievement_event(account, presence=None):
             'thumb': build_steam_game_payload(game),
         }
     return None
+
+
+def fetch_latest_steam_achievement_event(account, presence=None):
+    if not account or not account.provider_account_id or not os.getenv('STEAM_WEB_API_KEY'):
+        return None
+
+    presence = presence or fetch_steam_presence(account)
+    if not presence:
+        return None
+
+    latest_match = select_latest_recent_steam_achievement(
+        presence.get('recent_games', []),
+        account.provider_account_id,
+        steam_api_get,
+    )
+    if not latest_match:
+        return None
+
+    game = latest_match['game']
+    latest = latest_match['achievement']
+    unlocked_at = datetime.fromtimestamp(latest['unlocktime'], tz=timezone.utc)
+    return {
+        'timestamp': unlocked_at,
+        'kind': 'game_achievement',
+        'provider': 'steam',
+        'providerLabel': 'Steam',
+        'actor_name': get_display_name(account.user),
+        'actor_avatar_url': account.user.avatar,
+        'actor_color': build_user_color(account.user),
+        'text': (
+            f"<strong>{get_display_name(account.user)}</strong> lÃ¥ste opp achievement "
+            f"<em>{latest.get('name') or latest.get('apiname') or 'Ukjent achievement'}</em>"
+        ),
+        'game': game.get('name'),
+        'time': format_time_ago(unlocked_at),
+        'thumb': build_steam_game_payload(game),
+    }
 
 
 def can_manage_music(user):
