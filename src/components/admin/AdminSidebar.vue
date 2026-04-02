@@ -48,7 +48,7 @@
         </div>
         <div v-show="open.users" class="sidebar-items">
           <a class="s-item" :class="{ active: activeTab==='users' }" @click.prevent="$emit('set-active', 'users')">
-            <span class="s-dot"></span>User List
+            <span class="s-dot"></span>Roles & Permissions
           </a>
           <a class="s-item" :class="{ active: activeTab==='team' }" @click.prevent="$emit('set-active', 'team')">
             <span class="s-dot"></span>Team Manager

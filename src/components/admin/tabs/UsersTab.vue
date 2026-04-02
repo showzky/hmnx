@@ -1,136 +1,143 @@
 <template>
   <section v-if="userRoles.includes('admin') || userRoles.includes('developer')">
-
-    <!-- Header -->
     <div class="sec-head mb24">
       <div>
-        <div class="sec-title">Bruker<em>admin</em></div>
-        <div class="sec-subtitle">Administrer brukere, roller og achievements.</div>
+        <div class="sec-title">Roles & <em>Permissions</em></div>
+        <div class="sec-subtitle">Administrer roller, medlemmer og neste generasjons tilgangsstyring fra ett sted.</div>
       </div>
     </div>
 
-    <!-- Row 1: Update Role + Remove Roles -->
-    <div class="g2 mb16">
-
-      <!-- Update User Role -->
-      <div class="panel">
+    <div class="rp-layout mb16">
+      <aside class="panel">
         <div class="panel-head">
-          <span class="panel-title">Oppdater brukerrolle</span>
+          <span class="panel-title">Roller</span>
+          <button class="btn btn-red btn-sm" @click="startDraft">Ny rolle</button>
         </div>
-        <div class="panel-body">
-          <div class="form-group">
-            <label class="form-label">Velg bruker</label>
-            <select class="form-select" :value="userRoleUpdate.selectedUser"
-              @change="updateUserRoleUpdate('selectedUser', $event.target.value)">
-              <option value="" disabled>Velg bruker</option>
-              <option v-for="user in usersList" :key="user.id" :value="user.id">
-                {{ user.username || user.email }}
-              </option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Velg rolle</label>
-            <select class="form-select" :value="userRoleUpdate.newRole"
-              @change="updateUserRoleUpdate('newRole', $event.target.value)">
-              <option value="" disabled>Velg rolle</option>
-              <option v-for="role in availableRoles" :key="role.id" :value="role.id">{{ role.name }}</option>
-            </select>
-          </div>
-          <div v-if="selectedUserRoles.length" class="current-roles-container">
-            <span class="form-label">Nåværende:</span>
-            <span v-for="role in selectedUserRoles" :key="role.id"
-              class="role-badge"
-              :style="roleBadgeStyle(role)">{{ role.name }}</span>
-          </div>
-          <button class="btn btn-red btn-sm" style="margin-top:14px;" @click="$emit('updateUserRole')">Oppdater rolle</button>
-          <div v-if="updateUserMessage" class="form-message" :class="{ success: updateUserSuccess, error: !updateUserSuccess }">{{ updateUserMessage }}</div>
-        </div>
-      </div>
-
-      <!-- Remove User Roles -->
-      <div class="panel">
-        <div class="panel-head">
-          <span class="panel-title">Fjern brukerroller</span>
-        </div>
-        <div class="panel-body">
-          <div class="form-group">
-            <label class="form-label">Velg bruker</label>
-            <select class="form-select" :value="userRoleRemove.selectedUser"
-              @change="onUserRoleRemoveChange($event.target.value)">
-              <option value="" disabled>Velg bruker</option>
-              <option v-for="user in usersList" :key="user.id" :value="user.id">
-                {{ user.username || user.email }}
-              </option>
-            </select>
-          </div>
-          <div v-if="selectedUserRolesToRemove.length" class="role-remove-list">
-            <label v-for="role in selectedUserRolesToRemove" :key="role.id" class="role-remove-row" :class="{ selected: rolesToRemove.includes(role.id) }">
-              <input type="checkbox" :value="role.id" :checked="rolesToRemove.includes(role.id)"
-                @change="toggleRoleToRemove(role.id)" style="accent-color:var(--cyan);" />
-              <span class="role-badge" :style="roleBadgeStyle(role)">{{ role.name }}</span>
-            </label>
-          </div>
-          <div v-else-if="userRoleRemove.selectedUser" class="empty-hint">Ingen roller å fjerne.</div>
-          <button class="btn btn-danger btn-sm" @click="$emit('removeSelectedRoles')">Fjern valgte roller</button>
-          <div v-if="removeRoleMessage" class="form-message" :class="{ success: removeRoleSuccess, error: !removeRoleSuccess }">{{ removeRoleMessage }}</div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Row 2: Create Role + Existing Roles -->
-    <div class="g2 mb16">
-
-      <!-- Create New Role -->
-      <div class="panel">
-        <div class="panel-head">
-          <span class="panel-title">Opprett ny rolle</span>
-        </div>
-        <div class="panel-body">
-          <div class="role-preview-wrap">
-            <span class="role-preview-label">Forhåndsvisning:</span>
-            <span class="role-badge" :style="previewBadgeStyle">{{ newRole.name || 'Ny Rolle' }}</span>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Rollenavn</label>
-            <input class="form-input" :value="newRole.name" @input="updateNewRole('name', $event.target.value)" placeholder="f.eks. Producer" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Badge-farge</label>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <input type="color" :value="newRole.badge_color || '#5865f2'"
-                @input="updateNewRole('badge_color', $event.target.value)"
-                class="color-picker" />
-              <input class="form-input" :value="newRole.badge_color"
-                @input="onHexInput($event.target.value)"
-                placeholder="#5865f2" style="max-width:130px;" />
+        <div class="panel-body role-list">
+          <button
+            v-for="role in roleItems"
+            :key="role.key"
+            type="button"
+            class="role-item"
+            :class="{ active: selectedRoleKey === role.key }"
+            @click="selectedRoleKey = role.key"
+          >
+            <span class="role-dot" :style="{ background: roleColor(role.badge_color) }"></span>
+            <div class="role-copy">
+              <div class="role-line">
+                <span class="role-name">{{ role.name }}</span>
+                <span class="tiny-pill" :class="{ muted: !isSystemRole(role) }">{{ isSystemRole(role) ? 'System' : 'Custom' }}</span>
+              </div>
+              <div class="role-meta">{{ memberCount(role.id) }} medlemmer · {{ roleFlavorLabel(role) }}</div>
             </div>
-          </div>
-          <button class="btn btn-red btn-sm" @click="$emit('createRole')">Opprett rolle</button>
-          <div v-if="createRoleMessage" class="form-message" :class="{ success: createRoleSuccess, error: !createRoleSuccess }">{{ createRoleMessage }}</div>
+          </button>
         </div>
-      </div>
+      </aside>
 
-      <!-- Existing Roles -->
       <div class="panel">
         <div class="panel-head">
-          <span class="panel-title">Eksisterende roller</span>
-          <span class="panel-meta">{{ availableRoles.length }} roller</span>
-        </div>
-        <div class="panel-body" style="padding:0;">
-          <div v-if="!availableRoles.length" class="empty-hint" style="padding:16px;">Ingen roller opprettet ennå.</div>
-          <div v-for="role in availableRoles" :key="role.id" class="role-row">
-            <div class="role-row-left">
-              <span class="role-badge" :style="roleBadgeStyle(role)">{{ role.name }}</span>
-            </div>
-            <button class="btn btn-danger btn-sm" @click="$emit('deleteRole', role.id)">Slett</button>
+          <span class="panel-title">{{ isDraft ? 'Ny rolle' : selectedRole?.name || 'Role Editor' }}</span>
+          <div class="head-actions">
+            <span v-if="!isDraft && isSystemRole(selectedRole)" class="tiny-pill">Beskyttet</span>
+            <button v-if="isDraft" class="btn btn-red btn-sm" :disabled="!draft.name.trim()" @click="createDraft">Opprett rolle</button>
+            <button v-else-if="!isSystemRole(selectedRole)" class="btn btn-danger btn-sm" @click="$emit('deleteRole', selectedRole.id)">Slett rolle</button>
           </div>
         </div>
-      </div>
 
+        <div class="panel-body">
+          <div class="editor-grid">
+            <section class="editor-card">
+              <div class="editor-title">Display</div>
+              <div class="field-grid">
+                <label class="form-group">
+                  <span class="form-label">Rollenavn</span>
+                  <input class="form-input" :value="isDraft ? draft.name : selectedRole?.name" :readonly="!isDraft" @input="draft.name = $event.target.value" />
+                </label>
+                <label class="form-group">
+                  <span class="form-label">Dashboard flavor</span>
+                  <select class="form-select" :value="roleConfig.flavor" @change="updateConfig('flavor', $event.target.value)">
+                    <option value="default">Default dashboard</option>
+                    <option value="music">Music dashboard</option>
+                  </select>
+                </label>
+              </div>
+              <div class="field-grid">
+                <label class="form-group">
+                  <span class="form-label">Badge-farge</span>
+                  <div class="color-row">
+                    <input type="color" class="color-picker" :value="currentColor" @input="onColor($event.target.value)" />
+                    <input class="form-input" :value="currentColor" :readonly="!isDraft" @input="onHex($event.target.value)" />
+                  </div>
+                </label>
+                <div class="form-group">
+                  <span class="form-label">Forhåndsvisning</span>
+                  <div class="preview-box">
+                    <span class="role-badge" :style="badgeStyle(currentColor)">{{ (isDraft ? (draft.name || 'Ny rolle') : selectedRole?.name || 'Rolle').toUpperCase() }}</span>
+                    <span class="preview-note">{{ roleFlavorLabel(selectedRole) }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="editor-note">Nye roller starter trygt med null permissions. Flavor styrer kun visning, ikke tilgang.</div>
+            </section>
+
+            <section class="editor-card">
+              <div class="editor-title">Permissions</div>
+              <div v-for="group in permissionGroups" :key="group.label" class="perm-group">
+                <div class="perm-group-title">{{ group.label }}</div>
+                <label v-for="perm in group.items" :key="perm.key" class="perm-row">
+                  <div>
+                    <div class="perm-name">{{ perm.label }}</div>
+                    <div class="perm-desc">{{ perm.description }}</div>
+                  </div>
+                  <input type="checkbox" :checked="roleConfig.permissions.includes(perm.key)" @change="togglePermission(perm.key)" />
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <section class="editor-card members-card">
+            <div class="editor-title">Members</div>
+            <div class="member-toolbar">
+              <div class="member-picker-stack">
+                <label class="form-group member-picker-search">
+                  <span class="form-label">Søk etter bruker</span>
+                  <input
+                    v-model="memberSearch"
+                    class="form-input"
+                    type="text"
+                    placeholder="Søk på navn eller e-post"
+                  />
+                </label>
+              </div>
+            </div>
+            <div v-if="roleFeedback" class="form-message" :class="{ success: roleFeedbackSuccess, error: !roleFeedbackSuccess }">{{ roleFeedback }}</div>
+            <div v-if="!isDraft" class="add-results">
+              <div v-if="memberSearch.trim() && filteredAddableUsers.length" class="member-list">
+                <div v-for="user in filteredAddableUsers" :key="user.id" class="member-row member-row-add">
+                  <div>
+                    <div class="member-name">{{ user.username || user.email }}</div>
+                    <div class="member-meta">{{ user.email || 'Ingen e-post registrert' }}</div>
+                  </div>
+                  <button class="btn btn-red btn-sm" @click="addMember(user)">Legg til rolle</button>
+                </div>
+              </div>
+              <div v-else-if="memberSearch.trim()" class="empty-hint">Ingen tilgjengelige brukere matcher søket.</div>
+            </div>
+            <div v-if="members.length" class="member-list">
+              <div v-for="member in members" :key="member.id" class="member-row">
+                <div>
+                  <div class="member-name">{{ member.username || member.email }}</div>
+                  <div class="member-meta">{{ member.email || 'Ingen e-post registrert' }}</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" :disabled="isDraft" @click="removeMember(member)">Fjern rolle</button>
+              </div>
+            </div>
+            <div v-else class="empty-hint">Ingen medlemmer har denne rollen ennå.</div>
+          </section>
+        </div>
+      </div>
     </div>
 
-    <!-- User Achievements Management -->
     <div class="panel">
       <div class="panel-head">
         <span class="panel-title">Administrer bruker-achievements</span>
@@ -144,20 +151,14 @@
             <option v-for="user in usersList" :key="user.id" :value="user.id">{{ user.username || user.email }}</option>
           </select>
         </div>
-
         <template v-if="achvUserId">
           <div v-if="userAchievements.length" class="ach-admin-grid">
-            <label
-              v-for="achv in userAchievements"
-              :key="achv.achievement_id"
-              class="ach-admin-card"
-              :class="[achvRarityClass(achv), { 'is-selected': selectedAchievements.includes(achv.achievement_id) }]"
-            >
-              <input type="checkbox" :value="achv.achievement_id" v-model="selectedAchievements" class="ach-checkbox" />
+            <label v-for="achv in userAchievements" :key="achv.achievement_id" class="ach-admin-card" :class="[achvRarityClass(achv), { 'is-selected': selectedAchievements.includes(achv.achievement_id) }]">
+              <input v-model="selectedAchievements" type="checkbox" :value="achv.achievement_id" class="ach-checkbox" />
               <div class="ach-admin-icon">
                 <img v-if="isImgUrl(achv.svg || achv.icon)" :src="achv.svg || achv.icon" :alt="achv.name || achv.title" />
                 <span v-else-if="achv.svg || achv.icon" v-html="achv.svg || achv.icon" />
-                <span v-else>🏆</span>
+                <span v-else>T</span>
               </div>
               <div class="ach-admin-info">
                 <div class="ach-admin-name">{{ achv.name || achv.title }}</div>
@@ -166,300 +167,237 @@
                   <span v-if="achv.unlocked_at" class="ach-admin-date">{{ achv.unlocked_at.slice(0,10) }}</span>
                 </div>
               </div>
-              <div v-if="selectedAchievements.includes(achv.achievement_id)" class="ach-admin-check">✓</div>
+              <div v-if="selectedAchievements.includes(achv.achievement_id)" class="ach-admin-check">OK</div>
             </label>
           </div>
           <div v-else class="empty-hint">Ingen achievements låst opp ennå.</div>
-
           <div style="display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap;">
-            <button class="btn btn-danger btn-sm" @click="deleteUserAchievement" :disabled="!selectedAchievements.length">
-              Fjern valgte ({{ selectedAchievements.length }})
-            </button>
+            <button class="btn btn-danger btn-sm" @click="deleteUserAchievement" :disabled="!selectedAchievements.length">Fjern valgte ({{ selectedAchievements.length }})</button>
             <span v-if="selectedAchievements.length" style="font-size:11px;color:var(--muted);">{{ selectedAchievements.length }} valgt</span>
           </div>
           <div v-if="achvRemoveMessage" class="form-message" :class="{ success: achvRemoveSuccess, error: !achvRemoveSuccess }">{{ achvRemoveMessage }}</div>
         </template>
       </div>
     </div>
-
   </section>
 </template>
 
 <script>
+const SYSTEM_ROLES = ['admin', 'developer', 'producer', 'member'];
+const PERMISSION_GROUPS = [
+  { label: 'Management', items: [
+    { key: 'access_management', label: 'Access management', description: 'Gir tilgang til management-dashboardet.' },
+    { key: 'manage_users', label: 'Manage users', description: 'Kan håndtere brukere og medlemskap.' },
+    { key: 'manage_roles', label: 'Manage roles', description: 'Kan opprette og slette roller.' },
+  ]},
+  { label: 'Content', items: [
+    { key: 'publish_bedriftsmeldinger', label: 'Publish bedriftsmeldinger', description: 'Kan publisere nye bedriftsmeldinger.' },
+    { key: 'edit_bedriftsmeldinger', label: 'Edit bedriftsmeldinger', description: 'Kan redigere eksisterende bedriftsmeldinger.' },
+    { key: 'delete_bedriftsmeldinger', label: 'Delete bedriftsmeldinger', description: 'Kan slette bedriftsmeldinger.' },
+  ]},
+  { label: 'Music', items: [
+    { key: 'manage_music', label: 'Manage music', description: 'Kan laste opp og styre Bangerfabrikken.' },
+  ]},
+];
+
 export default {
-  props: [
-    'userRoles', 'usersList', 'userRoleUpdate', 'availableRoles',
-    'updateUserMessage', 'updateUserSuccess', 'selectedUserRoles',
-    'userRoleRemove', 'selectedUserRolesToRemove', 'rolesToRemove',
-    'removeRoleMessage', 'removeRoleSuccess',
-    'newRole', 'createRoleMessage', 'createRoleSuccess'
-  ],
-  emits: [
-    'updateUserRole', 'fetchUserRolesToRemove', 'removeSelectedRoles',
-    'createRole', 'deleteRole',
-    'update:userRoleUpdate', 'update:userRoleRemove',
-    'update:rolesToRemove', 'update:newRole'
-  ],
-  computed: {
-    previewBadgeStyle() {
-      const c = (this.newRole.badge_color && /^#[0-9a-fA-F]{6}$/.test(this.newRole.badge_color))
-        ? this.newRole.badge_color : '#888888'
-      const r = parseInt(c.slice(1,3), 16)
-      const g = parseInt(c.slice(3,5), 16)
-      const b = parseInt(c.slice(5,7), 16)
-      return {
-        background: `rgba(${r},${g},${b},0.1)`,
-        color: c,
-        border: `1px solid rgba(${r},${g},${b},0.2)`
-      }
-    }
-  },
+  props: ['userRoles', 'usersList', 'userRoleUpdate', 'availableRoles', 'updateUserMessage', 'updateUserSuccess', 'selectedUserRoles', 'userRoleRemove', 'selectedUserRolesToRemove', 'rolesToRemove', 'removeRoleMessage', 'removeRoleSuccess', 'newRole', 'createRoleMessage', 'createRoleSuccess'],
+  emits: ['updateUserRole', 'fetchUserRolesToRemove', 'removeSelectedRoles', 'createRole', 'deleteRole', 'update:userRoleUpdate', 'update:userRoleRemove', 'update:rolesToRemove', 'update:newRole'],
   data() {
     return {
-      achvUserId:           '',
-      userAchievements:     [],
+      achvUserId: '',
+      userAchievements: [],
       selectedAchievements: [],
-      achvRemoveMessage:    '',
-      achvRemoveSuccess:    false
-    }
+      achvRemoveMessage: '',
+      achvRemoveSuccess: false,
+      selectedRoleKey: '',
+      draft: { name: '', badge_color: '#5865f2' },
+      roleConfigs: {},
+      memberSearch: '',
+      roleFeedback: '',
+      roleFeedbackSuccess: true,
+    };
+  },
+  computed: {
+    permissionGroups() { return PERMISSION_GROUPS; },
+    roleItems() { return this.availableRoles.map(role => ({ ...role, key: `role-${role.id}` })); },
+    isDraft() { return this.selectedRoleKey === 'new'; },
+    selectedRole() { return this.isDraft ? { id: null, name: this.draft.name || 'Ny rolle', badge_color: this.draft.badge_color } : this.availableRoles.find(role => `role-${role.id}` === this.selectedRoleKey) || this.availableRoles[0] || null; },
+    roleConfig() {
+      if (!this.selectedRole) return { permissions: [], flavor: 'default' };
+      const key = this.isDraft ? 'new' : `role-${this.selectedRole.id}`;
+      return this.roleConfigs[key] || this.defaultConfig(this.selectedRole);
+    },
+    currentColor() { return this.roleConfig.previewColor || this.roleColor(this.isDraft ? this.draft.badge_color : this.selectedRole?.badge_color); },
+    members() {
+      if (!this.selectedRole || this.isDraft) return [];
+      return this.usersList.filter(user => Array.isArray(user.roles) && user.roles.some(role => role.id === this.selectedRole.id));
+    },
+    addableUsers() {
+      const ids = new Set(this.members.map(user => String(user.id)));
+      return this.usersList.filter(user => !ids.has(String(user.id)));
+    },
+    filteredAddableUsers() {
+      const query = this.memberSearch.trim().toLowerCase();
+      if (!query) return this.addableUsers;
+      return this.addableUsers.filter(user => {
+        const username = String(user.username || '').toLowerCase();
+        const email = String(user.email || '').toLowerCase();
+        return username.includes(query) || email.includes(query);
+      });
+    },
+  },
+  watch: {
+    availableRoles: {
+      immediate: true,
+      handler(roles) {
+        const next = {};
+        roles.forEach(role => { next[`role-${role.id}`] = this.roleConfigs[`role-${role.id}`] || this.defaultConfig(role); });
+        if (this.roleConfigs.new) next.new = this.roleConfigs.new;
+        this.roleConfigs = next;
+        if (!this.isDraft && roles.length && !roles.some(role => `role-${role.id}` === this.selectedRoleKey)) {
+          this.selectedRoleKey = `role-${roles[0].id}`;
+        }
+      },
+    },
   },
   methods: {
-    hexToRgba(hex, opacity) {
-      if (!hex || !hex.startsWith('#') || hex.length < 7) return `rgba(180,180,180,${opacity})`
-      const r = parseInt(hex.slice(1, 3), 16)
-      const g = parseInt(hex.slice(3, 5), 16)
-      const b = parseInt(hex.slice(5, 7), 16)
-      return `rgba(${r}, ${g}, ${b}, ${opacity})`
+    roleColor(color) { return /^#[0-9a-fA-F]{6}$/.test(color || '') ? color : '#888888'; },
+    rgba(hex, opacity) {
+      const c = this.roleColor(hex);
+      const r = parseInt(c.slice(1, 3), 16);
+      const g = parseInt(c.slice(3, 5), 16);
+      const b = parseInt(c.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
     },
-    roleBadgeStyle(role) {
-      const c = role.badge_color || '#888888'
-      const style = {
-        background: this.hexToRgba(c, 0.1),
-        color: c,
-        border: `1px solid ${this.hexToRgba(c, 0.2)}`
+    badgeStyle(color) { return { background: this.rgba(color, 0.1), color: this.roleColor(color), border: `1px solid ${this.rgba(color, 0.2)}` }; },
+    isSystemRole(role) { return !!role && SYSTEM_ROLES.includes((role.name || '').toLowerCase()); },
+    memberCount(roleId) { return this.usersList.filter(user => Array.isArray(user.roles) && user.roles.some(role => role.id === roleId)).length; },
+    roleFlavorLabel(role) { return (this.roleConfigs[role?.id ? `role-${role.id}` : 'new'] || this.defaultConfig(role)).flavor === 'music' ? 'Music dashboard' : 'Default dashboard'; },
+    defaultConfig(role) {
+      const name = (role?.name || '').toLowerCase();
+      if (name === 'admin') return { permissions: PERMISSION_GROUPS.flatMap(group => group.items.map(item => item.key)), flavor: 'default' };
+      if (name === 'developer') return { permissions: ['access_management', 'manage_users', 'manage_roles', 'publish_bedriftsmeldinger', 'edit_bedriftsmeldinger', 'delete_bedriftsmeldinger', 'manage_music'], flavor: 'default' };
+      if (name === 'producer') return { permissions: ['access_management', 'publish_bedriftsmeldinger', 'edit_bedriftsmeldinger', 'manage_music'], flavor: 'music' };
+      return { permissions: [], flavor: 'default' };
+    },
+    updateConfig(field, value) {
+      const key = this.isDraft ? 'new' : `role-${this.selectedRole.id}`;
+      this.roleConfigs = { ...this.roleConfigs, [key]: { ...this.roleConfig, [field]: value } };
+    },
+    togglePermission(permission) {
+      const permissions = this.roleConfig.permissions.includes(permission)
+        ? this.roleConfig.permissions.filter(item => item !== permission)
+        : [...this.roleConfig.permissions, permission];
+      this.updateConfig('permissions', permissions);
+    },
+    startDraft() {
+      this.selectedRoleKey = 'new';
+      this.draft = { name: '', badge_color: '#5865f2' };
+      this.roleConfigs = { ...this.roleConfigs, new: { permissions: [], flavor: 'default' } };
+      this.memberSearch = '';
+    },
+    onColor(value) { this.isDraft ? this.draft.badge_color = value : this.updateConfig('previewColor', value); },
+    onHex(value) { if (/^#[0-9a-fA-F]{6}$/.test(value)) this.isDraft ? this.draft.badge_color = value : this.updateConfig('previewColor', value); },
+    createDraft() {
+      this.$emit('update:newRole', { name: this.draft.name.trim(), badge_color: this.roleColor(this.draft.badge_color), badge_icon: '' });
+      this.$emit('createRole');
+      this.roleFeedback = 'Ny rolle sendes til backend med trygg standard uten permissions.';
+      this.roleFeedbackSuccess = true;
+    },
+    addMember(user) {
+      if (!this.selectedRole || !user) return;
+      if (user && Array.isArray(user.roles) && !user.roles.some(role => role.id === this.selectedRole.id)) {
+        user.roles.push({
+          id: this.selectedRole.id,
+          name: this.selectedRole.name,
+          badge_color: this.selectedRole.badge_color,
+        });
       }
-      if (role.badge_border_style === 'dashed') style.borderStyle = 'dashed'
-      return style
+      this.$emit('update:userRoleUpdate', { ...this.userRoleUpdate, selectedUser: String(user.id), newRole: String(this.selectedRole.id) });
+      this.$emit('updateUserRole');
+      this.memberSearch = '';
+      this.roleFeedback = 'Rolle blir lagt til via dagens backend-flyt.';
+      this.roleFeedbackSuccess = true;
     },
-    onHexInput(value) {
-      // Only emit if it looks like a valid hex
-      if (/^#[0-9a-fA-F]{6}$/.test(value) || value === '') {
-        this.updateNewRole('badge_color', value)
-      }
-    },
-    updateUserRoleUpdate(field, value) {
-      this.$emit('update:userRoleUpdate', { ...this.userRoleUpdate, [field]: value })
-    },
-    onUserRoleRemoveChange(value) {
-      this.$emit('update:userRoleRemove', { ...this.userRoleRemove, selectedUser: value })
-      this.$emit('fetchUserRolesToRemove')
-    },
-    toggleRoleToRemove(roleId) {
-      const list = this.rolesToRemove.includes(roleId)
-        ? this.rolesToRemove.filter(id => id !== roleId)
-        : [...this.rolesToRemove, roleId]
-      this.$emit('update:rolesToRemove', list)
-    },
-    updateNewRole(field, value) {
-      this.$emit('update:newRole', { ...this.newRole, [field]: value })
-    },
-    achvRarityClass(achv) {
-      return (achv.rarity || 'common').toLowerCase()
-    },
-    achvRarityBadge(achv) {
-      const map = { legendary: 'b-gold', epic: 'b-purple', rare: 'b-cyan', common: 'b-muted' }
-      return map[(achv.rarity || 'common').toLowerCase()] || 'b-muted'
-    },
-    isImgUrl(src) {
-      return typeof src === 'string' && (src.startsWith('http') || src.startsWith('data:image') || /\.(svg|png|jpe?g)$/.test(src))
-    },
-    async fetchUserAchievements() {
-      if (!this.achvUserId) { this.userAchievements = []; return }
+    async removeMember(member) {
+      if (!this.selectedRole) return;
       try {
-        const apiBase = import.meta.env.VITE_API_URL
-        const res = await fetch(`${apiBase}/user/${this.achvUserId}/achievements`, {
-          headers: { Authorization: 'Bearer ' + localStorage.getItem('access_token') }
-        })
-        if (!res.ok) throw new Error('Failed to fetch achievements')
-        this.userAchievements     = await res.json()
-        this.selectedAchievements = []
-        this.achvRemoveMessage    = ''
-        this.achvRemoveSuccess    = false
+        const apiBase = import.meta.env.VITE_API_URL;
+        const res = await fetch(`${apiBase}/demote-user`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+          },
+          body: JSON.stringify({
+            user_id: member.id,
+            role_to_remove: this.selectedRole.name,
+          }),
+        });
+        if (!res.ok) throw new Error('Failed to remove role');
+        if (Array.isArray(member.roles)) {
+          member.roles = member.roles.filter(role => role.id !== this.selectedRole.id);
+        }
+        this.roleFeedback = `Rollen ${this.selectedRole.name} ble fjernet fra ${member.username || member.email}.`;
+        this.roleFeedbackSuccess = true;
       } catch (e) {
-        this.userAchievements  = []
-        this.achvRemoveMessage = 'Klarte ikke å hente achievements.'
-        this.achvRemoveSuccess = false
+        this.roleFeedback = 'Klarte ikke å fjerne rollen fra brukeren.';
+        this.roleFeedbackSuccess = false;
+      }
+    },
+    achvRarityClass(achv) { return (achv.rarity || 'common').toLowerCase(); },
+    achvRarityBadge(achv) { return ({ legendary: 'b-gold', epic: 'b-purple', rare: 'b-cyan', common: 'b-muted' })[(achv.rarity || 'common').toLowerCase()] || 'b-muted'; },
+    isImgUrl(src) { return typeof src === 'string' && (src.startsWith('http') || src.startsWith('data:image') || /\.(svg|png|jpe?g)$/.test(src)); },
+    async fetchUserAchievements() {
+      if (!this.achvUserId) { this.userAchievements = []; return; }
+      try {
+        const apiBase = import.meta.env.VITE_API_URL;
+        const res = await fetch(`${apiBase}/user/${this.achvUserId}/achievements`, { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } });
+        if (!res.ok) throw new Error('Failed to fetch achievements');
+        this.userAchievements = await res.json();
+        this.selectedAchievements = [];
+        this.achvRemoveMessage = '';
+        this.achvRemoveSuccess = false;
+      } catch (e) {
+        this.userAchievements = [];
+        this.achvRemoveMessage = 'Klarte ikke å hente achievements.';
+        this.achvRemoveSuccess = false;
       }
     },
     async deleteUserAchievement() {
-      if (!this.selectedAchievements.length) return
+      if (!this.selectedAchievements.length) return;
       try {
-        const apiBase = import.meta.env.VITE_API_URL
+        const apiBase = import.meta.env.VITE_API_URL;
         for (const achvId of this.selectedAchievements) {
           await fetch(`${apiBase}/admin/delete-user-achievement`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: 'Bearer ' + localStorage.getItem('access_token')
-            },
-            body: JSON.stringify({ user_id: this.achvUserId, achievement_id: achvId })
-          })
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('access_token')}` },
+            body: JSON.stringify({ user_id: this.achvUserId, achievement_id: achvId }),
+          });
         }
-        this.achvRemoveMessage    = 'Valgte achievements er fjernet.'
-        this.achvRemoveSuccess    = true
-        this.selectedAchievements = []
-        await this.fetchUserAchievements()
+        this.achvRemoveMessage = 'Valgte achievements er fjernet.';
+        this.achvRemoveSuccess = true;
+        this.selectedAchievements = [];
+        await this.fetchUserAchievements();
       } catch (e) {
-        this.achvRemoveMessage = 'Klarte ikke å fjerne achievements.'
-        this.achvRemoveSuccess = false
+        this.achvRemoveMessage = 'Klarte ikke å fjerne achievements.';
+        this.achvRemoveSuccess = false;
       }
-    }
-  }
-}
+    },
+  },
+};
 </script>
 
 <style scoped>
-/* HMN role badge — matches design system exactly */
-.role-badge {
-  display: inline-block;
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  padding: 3px 9px;
-  border-radius: 4px;
-}
-
-/* Role row in Existing Roles panel */
-.role-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  transition: background 0.15s;
-}
-.role-row:last-child { border-bottom: none; }
-.role-row:hover { background: rgba(255,255,255,0.02); }
-.role-row-left { display: flex; align-items: center; gap: 8px; }
-
-/* Role remove checkboxes */
-.role-remove-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-.role-remove-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,0.02);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.role-remove-row:hover { border-color: var(--border2); background: rgba(255,255,255,0.04); }
-.role-remove-row.selected { border-color: rgba(200,16,46,0.3); background: rgba(200,16,46,0.06); }
-
-/* Color picker */
-.color-picker {
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--border2);
-  border-radius: 6px;
-  padding: 2px;
-  background: var(--surface2);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-/* Achievement admin grid */
-.ach-admin-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.ach-admin-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,0.02);
-  cursor: pointer;
-  transition: all 0.15s;
-  position: relative;
-  overflow: hidden;
-}
-.ach-admin-card::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 2px;
-}
-.ach-admin-card.legendary { border-color: rgba(216,152,32,0.2); background: rgba(216,152,32,0.04); }
-.ach-admin-card.legendary::before { background: var(--gold); }
-.ach-admin-card.epic       { border-color: rgba(112,80,216,0.2); background: rgba(112,80,216,0.04); }
-.ach-admin-card.epic::before       { background: #9070f0; }
-.ach-admin-card.rare       { border-color: rgba(0,184,208,0.18); background: rgba(0,184,208,0.03); }
-.ach-admin-card.rare::before       { background: var(--cyan); }
-.ach-admin-card.common::before     { background: rgba(255,255,255,0.15); }
-
-.ach-admin-card:hover { border-color: var(--border2); background: rgba(255,255,255,0.04); transform: translateX(2px); }
-.ach-admin-card.is-selected { border-color: rgba(200,16,46,0.3); background: rgba(200,16,46,0.06); }
-
-.ach-checkbox { display: none; }
-
-.ach-admin-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 7px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
-.ach-admin-icon img { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; }
-
-.ach-admin-info { flex: 1; min-width: 0; }
-.ach-admin-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-bright);
-  font-family: var(--font-body);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 4px;
-}
-.ach-admin-meta { display: flex; align-items: center; gap: 6px; }
-.ach-admin-date { font-size: 10px; color: var(--text-muted); font-family: var(--font-display); letter-spacing: 0.04em; }
-
-.ach-admin-check {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--red);
-  color: white;
-  font-size: 11px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 0 8px rgba(200,16,46,0.4);
-}
-
-.empty-hint {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-style: italic;
-  margin-bottom: 12px;
-}
+.rp-layout,.editor-grid{display:grid;gap:16px}.rp-layout{grid-template-columns:320px minmax(0,1fr)}.editor-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:16px}
+.role-list{display:flex;flex-direction:column;gap:8px}.role-item{display:flex;gap:12px;align-items:flex-start;width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.02);color:var(--text);text-align:left;cursor:pointer;transition:.18s}.role-item:hover{border-color:var(--border2);background:rgba(255,255,255,.04)}.role-item.active{border-color:rgba(0,184,208,.25);background:rgba(0,184,208,.08)}
+.role-dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex-shrink:0}.role-copy{min-width:0;flex:1}.role-line{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:5px}.role-name,.editor-title,.role-badge,.tiny-pill{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase}.role-name{font-size:15px;font-weight:700;letter-spacing:.04em;color:var(--text-bright)}.role-meta,.panel-subtitle,.perm-desc,.member-meta,.preview-note,.empty-hint{font-size:11px;color:var(--text-muted)}
+.tiny-pill{display:inline-flex;align-items:center;justify-content:center;padding:3px 8px;border-radius:999px;font-size:9px;font-weight:700;letter-spacing:.08em;background:rgba(216,152,32,.08);color:var(--gold);border:1px solid rgba(216,152,32,.18)}.tiny-pill.muted{background:rgba(255,255,255,.03);color:var(--text-muted);border-color:var(--border2)}
+.head-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.editor-card{padding:16px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.02)}.editor-title{font-size:14px;font-weight:800;letter-spacing:.08em;color:var(--text-bright);margin-bottom:14px}.field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.color-row{display:grid;grid-template-columns:40px minmax(0,1fr);gap:8px;align-items:center}.color-picker{width:40px;height:40px;border:1px solid var(--border2);border-radius:8px;padding:3px;background:var(--surface2);cursor:pointer}
+.preview-box{min-height:40px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.02)}.role-badge{display:inline-flex;align-items:center;padding:5px 11px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.07em}.editor-note{margin-top:14px;padding:12px 13px;border:1px solid rgba(0,184,208,.12);border-radius:8px;background:rgba(0,184,208,.05);font-size:11px;color:rgba(255,255,255,.62);line-height:1.6}
+.perm-group{border:1px solid var(--border);border-radius:8px;overflow:hidden}.perm-group+.perm-group{margin-top:12px}.perm-group-title{padding:10px 12px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan)}.perm-row{display:flex;justify-content:space-between;gap:12px;padding:12px;border-top:1px solid rgba(255,255,255,.04)}.perm-row:first-of-type{border-top:none}.perm-name,.member-name{font-size:13px;font-weight:600;color:var(--text-bright);margin-bottom:4px}.perm-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--green);margin-top:2px;flex-shrink:0}
+.member-toolbar{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:14px}.member-picker-stack{display:flex;flex-direction:column;gap:10px;min-width:260px;flex:1}.member-picker-search{margin-bottom:0}.add-results{margin-bottom:14px}.member-list{display:flex;flex-direction:column;gap:8px}.member-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.02)}.member-row-add{border-color:rgba(0,184,208,.14);background:rgba(0,184,208,.04)}
+.ach-admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;margin-bottom:4px}.ach-admin-card{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.02);cursor:pointer;transition:.15s;position:relative;overflow:hidden}.ach-admin-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px}.ach-admin-card.legendary{border-color:rgba(216,152,32,.2);background:rgba(216,152,32,.04)}.ach-admin-card.legendary::before{background:var(--gold)}.ach-admin-card.epic{border-color:rgba(112,80,216,.2);background:rgba(112,80,216,.04)}.ach-admin-card.epic::before{background:#9070f0}.ach-admin-card.rare{border-color:rgba(0,184,208,.18);background:rgba(0,184,208,.03)}.ach-admin-card.rare::before{background:var(--cyan)}.ach-admin-card.common::before{background:rgba(255,255,255,.15)}.ach-admin-card:hover{border-color:var(--border2);background:rgba(255,255,255,.04);transform:translateX(2px)}.ach-admin-card.is-selected{border-color:rgba(200,16,46,.3);background:rgba(200,16,46,.06)}.ach-checkbox{display:none}.ach-admin-icon{width:36px;height:36px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;background:rgba(255,255,255,.05);border:1px solid var(--border);overflow:hidden}.ach-admin-icon img{width:100%;height:100%;object-fit:contain;border-radius:6px}.ach-admin-info{flex:1;min-width:0}.ach-admin-name{font-size:13px;font-weight:600;color:var(--text-bright);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}.ach-admin-meta{display:flex;align-items:center;gap:6px}.ach-admin-date{font-size:10px;color:var(--text-muted);font-family:var(--font-display);letter-spacing:.04em}.ach-admin-check{min-width:28px;height:20px;border-radius:999px;background:var(--red);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px rgba(200,16,46,.4)}
+@media (max-width:1100px){.rp-layout,.editor-grid{grid-template-columns:1fr}}@media (max-width:720px){.field-grid{grid-template-columns:1fr}.member-picker{min-width:100%}.member-row{flex-direction:column;align-items:stretch}}
 </style>

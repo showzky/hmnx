@@ -6128,7 +6128,7 @@ def _melding_dict(m):
         'tag': m.tag,
         'pinned': m.pinned,
         'notify_users': m.notify_users,
-        'created_at': m.created_at.isoformat(),
+        'created_at': m.created_at.isoformat() + 'Z',
         'author': author,
     }
 
