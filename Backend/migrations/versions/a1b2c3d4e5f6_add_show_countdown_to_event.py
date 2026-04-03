@@ -16,7 +16,7 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column('event', sa.Column('show_countdown', sa.Boolean(), nullable=False, server_default='false'))
+    op.add_column('event', sa.Column('show_countdown', sa.Boolean(), nullable=False, server_default='0'))
 
 
 def downgrade():
