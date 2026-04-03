@@ -1991,6 +1991,7 @@ class Event(db.Model):
     event_description = db.Column(db.Text, nullable=True)   # Optional description for the event
     event_image_path = db.Column(db.String(255))  # Store Cloudinary URL of the image
     template_name = db.Column(db.String(100), default='template1') # Store template name, default to 'template1'
+    show_countdown = db.Column(db.Boolean, default=False, nullable=False)
 
     def __repr__(self):
         return f'<Event {self.id} - {self.event_name}>'
@@ -4382,6 +4383,8 @@ def create_event():
     template_name = request.form.get('template_name')  # Get template name from form data
     notify_users_str = request.form.get('notify_users')  # Get notify_users as string
     notify_users = notify_users_str.lower() == 'true' if notify_users_str else False  # Convert string to boolean
+    show_countdown_str = request.form.get('show_countdown')
+    show_countdown = show_countdown_str.lower() == 'true' if show_countdown_str else False
 
     event_image_file = request.files.get('event_image')  # Get the uploaded image file
 
@@ -4415,7 +4418,8 @@ def create_event():
         event_time=event_time,
         event_description=event_description,
         event_image_path=image_url,
-        template_name=template_name
+        template_name=template_name,
+        show_countdown=show_countdown
     )
 
     db.session.add(new_event)
@@ -4640,7 +4644,8 @@ def get_event_by_id(event_id):
             "event_time": event.event_time.isoformat(),
             "event_description": event.event_description,
             "event_image_path": event.event_image_path,
-            "template_name": event.template_name
+            "template_name": event.template_name,
+            "show_countdown": event.show_countdown or False
         }
         return jsonify({"event": event_data}), 200  # Return event data in JSON
     else:

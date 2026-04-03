@@ -124,13 +124,20 @@
             placeholder="Kort beskrivelse av hendelsen..."></textarea>
         </div>
 
-        <!-- Row 4: Checkbox + Submit -->
+        <!-- Row 4: Checkboxes + Submit -->
         <div class="ev-form-footer">
-          <label class="ev-check-row">
-            <input type="checkbox" :checked="newEvent.notify_users"
-              @change="updateField('notify_users', $event.target.checked)" />
-            <span class="ev-check-label">Varsle alle brukere når hendelsen opprettes</span>
-          </label>
+          <div class="ev-checks">
+            <label class="ev-check-row">
+              <input type="checkbox" :checked="newEvent.notify_users"
+                @change="updateField('notify_users', $event.target.checked)" />
+              <span class="ev-check-label">Varsle alle brukere når hendelsen opprettes</span>
+            </label>
+            <label class="ev-check-row">
+              <input type="checkbox" :checked="newEvent.show_countdown"
+                @change="updateField('show_countdown', $event.target.checked)" />
+              <span class="ev-check-label">Vis nedtellingstimer på event-siden</span>
+            </label>
+          </div>
           <button class="btn btn-red" @click="$emit('createEvent')">Opprett hendelse</button>
         </div>
 
@@ -237,9 +244,10 @@ export default {
 
 /* ── Form footer (checkbox + submit) ── */
 .ev-form-footer {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: flex-end; justify-content: space-between;
   flex-wrap: wrap; gap: 14px;
 }
+.ev-checks { display: flex; flex-direction: column; gap: 8px; }
 .ev-check-row { display: flex; align-items: center; gap: 9px; cursor: pointer; }
 .ev-check-row input[type="checkbox"] { width: 16px; height: 16px; border-radius: 4px; accent-color: var(--cyan); cursor: pointer; flex-shrink: 0; }
 .ev-check-label { font-size: 13px; color: var(--text); font-family: 'Barlow', sans-serif; }

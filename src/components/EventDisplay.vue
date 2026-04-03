@@ -27,11 +27,11 @@
           eventTime: this.eventData.event_time,
           eventDescription: this.eventData.event_description,
           eventImagePath: this.eventData.event_image_path,
-          // Optionally add more fields if needed:
           eventLocation: this.eventData.event_location || '',
           eventPhoneNumber: this.eventData.event_phone_number || '',
           eventWarning: this.eventData.event_warning || '',
-          eventContactEmail: this.eventData.event_contact_email || ''
+          eventContactEmail: this.eventData.event_contact_email || '',
+          showCountdown: this.eventData.show_countdown || false,
         };
       },
       templateComponent() {
