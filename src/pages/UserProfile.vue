@@ -123,45 +123,78 @@
         </div>
 
         <!-- ── GAMING ── -->
-        <div v-show="activeTab === 'gaming'" class="tab-single tab-wide">
-          <div v-if="gamingLoading" class="mc"><div class="empty-state">Laster gaming-data…</div></div>
-          <template v-else-if="recentGames.length || allGames.length">
-            <div class="mc" v-if="recentGames.length">
-              <div class="mc-head"><span class="mc-title">Siste spilte</span></div>
-              <div class="game-grid">
-                <div v-for="game in recentGames" :key="game.id" class="gc">
-                  <div class="gc-art" :style="game.artStyle">
-                    <img v-if="game.imageUrl" :src="game.imageUrl" :alt="game.title" class="gc-art-img" />
-                    <span v-else>{{ game.code }}</span>
-                    <div class="gc-pip" :class="game.platformClass">{{ game.platform }}</div>
-                  </div>
-                  <div class="gc-body">
-                    <div class="gc-title">{{ game.title }}</div>
-                    <div class="gc-stats"><span>{{ game.leftStat }}</span><span>{{ game.rightStat }}</span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="mc" v-if="allGames.length">
-              <div class="mc-head"><span class="mc-title">Alle spill</span></div>
-              <div class="game-grid">
-                <div v-for="game in allGames" :key="game.id" class="gc">
-                  <div class="gc-art" :style="game.artStyle">
-                    <img v-if="game.imageUrl" :src="game.imageUrl" :alt="game.title" class="gc-art-img" />
-                    <span v-else>{{ game.code }}</span>
-                    <div class="gc-pip" :class="game.platformClass">{{ game.platform }}</div>
-                  </div>
-                  <div class="gc-body">
-                    <div class="gc-title">{{ game.title }}</div>
-                    <div class="gc-stats"><span>{{ game.leftStat }}</span><span>{{ game.rightStat }}</span></div>
+        <div v-show="activeTab === 'gaming'" class="pg">
+          <!-- Sidebar -->
+          <div class="col">
+            <div class="scard">
+              <div class="sch"><span class="sch-t">Plattformer</span></div>
+              <div class="sb">
+                <div v-if="gamingLoading" class="empty-state" style="padding:12px">Laster…</div>
+                <div v-else-if="!gamingPlatforms.length" class="empty-state" style="padding:12px">Ingen tilkoblet</div>
+                <div v-else class="conn-list">
+                  <div v-for="p in gamingPlatforms" :key="p.id" class="conn">
+                    <div class="conn-icon" :class="p.iconClass">{{ p.abbr }}</div>
+                    <div class="conn-info">
+                      <div class="conn-name">{{ p.name }}</div>
+                      <div class="conn-user">{{ p.meta }}</div>
+                    </div>
+                    <div class="conn-dot cd-on"></div>
                   </div>
                 </div>
               </div>
             </div>
-          </template>
-          <div v-else class="mc">
-            <div class="mc-head"><span class="mc-title">Gaming</span></div>
-            <div class="empty-state">Ingen gaming-data tilgjengelig for denne brukeren.</div>
+            <div class="scard">
+              <div class="sch"><span class="sch-t">Totalt</span></div>
+              <div class="stat-rows">
+                <div class="sr"><span class="sr-label">Total spilltid</span><span class="sr-val c-cyan">{{ gamingTotalHours }}</span></div>
+                <div class="sr"><span class="sr-label">Gamerscore</span><span class="sr-val c-gold">{{ gamingGamerscore || '—' }}</span></div>
+                <div class="sr"><span class="sr-label">Spill eiet</span><span class="sr-val c-green">{{ gamingOwnedGames || '—' }}</span></div>
+                <div class="sr"><span class="sr-label">Achievements</span><span class="sr-val c-red">{{ unlockedCount || '—' }}</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main -->
+          <div class="col">
+            <div v-if="gamingLoading" class="mc"><div class="empty-state">Laster gaming-data…</div></div>
+            <template v-else-if="recentGames.length">
+              <div class="mc">
+                <div class="mc-head"><span class="mc-title">Siste spilte</span></div>
+                <div class="game-grid">
+                  <div v-for="game in recentGames" :key="game.id + '-r'" class="gc">
+                    <div class="gc-art" :style="game.artStyle">
+                      <img v-if="game.imageUrl" :src="game.imageUrl" :alt="game.title" class="gc-art-img" />
+                      <span v-else>{{ game.code }}</span>
+                      <div class="gc-pip" :class="game.platformClass">{{ game.platform }}</div>
+                    </div>
+                    <div class="gc-body">
+                      <div class="gc-title">{{ game.title }}</div>
+                      <div class="gc-stats"><span>{{ game.leftStat }}</span><span>{{ game.rightStat }}</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="mc" v-if="allGames.length">
+                <div class="mc-head"><span class="mc-title">Alle spill</span><span class="mc-meta">{{ gamingOwnedGames }} totalt</span></div>
+                <div class="game-grid">
+                  <div v-for="game in allGames" :key="game.id + '-a'" class="gc">
+                    <div class="gc-art" :style="game.artStyle">
+                      <img v-if="game.imageUrl" :src="game.imageUrl" :alt="game.title" class="gc-art-img" />
+                      <span v-else>{{ game.code }}</span>
+                      <div class="gc-pip" :class="game.platformClass">{{ game.platform }}</div>
+                    </div>
+                    <div class="gc-body">
+                      <div class="gc-title">{{ game.title }}</div>
+                      <div class="gc-stats"><span>{{ game.leftStat }}</span><span>{{ game.rightStat }}</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <div v-else class="mc">
+              <div class="mc-head"><span class="mc-title">Gaming</span></div>
+              <div class="empty-state">Ingen gaming-data tilgjengelig for denne brukeren.</div>
+            </div>
           </div>
         </div>
 
@@ -272,14 +305,35 @@ function normalizeGame(game) {
   }
 }
 
+const steamSummary  = computed(() => gamingSummary.value?.steam || {})
+const xboxSummary   = computed(() => gamingSummary.value?.xbox || {})
+
 const recentGames = computed(() => {
-  const games = gamingSummary.value?.recent_games || []
-  return games.map(normalizeGame)
+  const steam = (steamSummary.value.recent_games || []).map(normalizeGame)
+  const xbox  = (xboxSummary.value.recent_games  || []).map(normalizeGame)
+  return [...steam, ...xbox]
 })
 
 const allGames = computed(() => {
-  const games = gamingSummary.value?.all_games || []
-  return games.map(normalizeGame)
+  const steam = (steamSummary.value.all_games || []).map(normalizeGame)
+  const xbox  = (xboxSummary.value.all_games  || []).map(normalizeGame)
+  return [...steam, ...xbox]
+})
+
+const gamingTotalHours  = computed(() => `${steamSummary.value.totals?.total_hours ?? 0}t`)
+const gamingOwnedGames  = computed(() => (steamSummary.value.totals?.owned_games ?? 0) + (xboxSummary.value.totals?.owned_games ?? 0))
+const gamingGamerscore  = computed(() => xboxSummary.value.totals?.gamerscore ?? 0)
+
+const gamingPlatforms = computed(() => {
+  const platforms = []
+  if (steamSummary.value.connected) {
+    platforms.push({ id: 'steam', name: 'Steam', abbr: 'S', iconClass: 'ci-s', meta: `${steamSummary.value.totals?.total_hours ?? 0}t total spilltid` })
+  }
+  if (xboxSummary.value.connected) {
+    const xboxName = user.value?.connected_accounts?.xbox?.display_name || 'Xbox-konto tilkoblet'
+    platforms.push({ id: 'xbox', name: 'Xbox', abbr: 'X', iconClass: 'ci-x', meta: `${xboxName} · Xbox-konto tilkoblet` })
+  }
+  return platforms
 })
 
 const initials     = computed(() => (user.value?.username || user.value?.email || '?').charAt(0).toUpperCase())
@@ -346,16 +400,7 @@ onMounted(async () => {
   gamingLoading.value = true
   try {
     const res = await axios.get(`/users/${userId}/gaming-summary`)
-    const data = res.data
-    // Merge recent_games from both steam and xbox
-    const steamGames = data.steam?.recent_games || []
-    const xboxGames = data.xbox?.recent_games || []
-    const allSteam = data.steam?.all_games || []
-    const allXbox = data.xbox?.all_games || []
-    gamingSummary.value = {
-      recent_games: [...steamGames, ...xboxGames],
-      all_games: [...allSteam, ...allXbox],
-    }
+    gamingSummary.value = res.data
   } catch (e) {
     console.error('Gaming summary load error:', e)
   } finally {

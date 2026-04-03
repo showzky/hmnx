@@ -1037,10 +1037,10 @@ def build_steam_summary(account):
     player = (presence or {}).get('player', {})
     recent_games = (presence or {}).get('recent_games', [])
     owned_games = (owned_games_response or {}).get('response', {}).get('games', []) or []
-    recent_payload = [build_steam_game_payload(game) for game in recent_games[:3]]
+    recent_payload = [build_steam_game_payload(game) for game in recent_games[:6]]
     all_games_payload = [
         build_steam_game_payload(game)
-        for game in sorted(owned_games, key=lambda item: item.get('playtime_forever', 0), reverse=True)[:6]
+        for game in sorted(owned_games, key=lambda item: item.get('playtime_forever', 0), reverse=True)[:12]
     ]
     current_game_name = player.get('gameextrainfo') or (recent_payload[0]['title'] if recent_payload else None)
     current_game = None
@@ -1118,8 +1118,8 @@ def build_xbox_summary(account):
     if not titles:
         titles = fetch_xbox_title_history(account.provider_account_id, auth_key=auth_key, use_contract=use_contract)
 
-    recent_games = titles[:3]
-    all_games = titles[:6]
+    recent_games = titles[:6]
+    all_games = titles[:12]
     current_game_name = first_non_empty(
         presence.get('presenceText'),
         profile.get('presence_text'),
