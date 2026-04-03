@@ -22,6 +22,13 @@
           <span class="melding-date">{{ formatDate(featuredMelding?.date) || '19. mars 2026' }}</span>
         </div>
         <div class="melding-body">
+          <div v-if="featuredMelding?.image_url" class="melding-cover-wrap">
+            <img
+              :src="featuredMelding.image_url"
+              :alt="featuredMelding.image_alt || featuredMelding.title || 'Bedriftsmelding bilde'"
+              class="melding-cover"
+            />
+          </div>
           <div class="melding-title">{{ featuredMelding?.title || 'Ingen aktiv melding.\nPasienten er stabil.' }}</div>
           <p class="melding-text">
             {{ featuredMelding?.body || 'Ingen alarmer, ingen kriser og ingen tegn på Thomas-relatert aktivitet. Dette er enten veldig bra eller veldig mistenkelig. § 4.2 anbefaler å ikke tenke for mye på det.' }}
@@ -107,6 +114,15 @@ defineProps({
 }
 .melding-date { margin-left: auto; font-size: 11px; color: var(--text-muted); font-family: var(--font-ui); }
 .melding-body { padding: 20px 20px 22px; }
+.melding-cover-wrap { margin-bottom: 16px; }
+.melding-cover {
+  display: block;
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+}
 .melding-title {
   font-family: var(--font-display); font-size: 26px; font-weight: 900;
   color: var(--text-bright); line-height: 1.05; text-transform: uppercase;

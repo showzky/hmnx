@@ -75,6 +75,14 @@
     <!-- POST BODY -->
     <div class="post-content">
       <div class="container-narrow">
+        <div v-if="melding.image_url" class="post-cover-wrap">
+          <img
+            :src="melding.image_url"
+            :alt="melding.image_alt || melding.title"
+            class="post-cover-image"
+            :style="melding.image_position ? { objectPosition: melding.image_position } : {}"
+          />
+        </div>
         <div class="post-body" v-html="renderedContent"></div>
 
         <!-- POST FOOTER -->
@@ -106,6 +114,9 @@
               :to="`/bedriftsmeldinger/${o.id}`"
               class="other-card"
             >
+              <div v-if="o.image_url" class="oc-media">
+                <img :src="o.image_url" :alt="o.image_alt || o.title" class="oc-image" />
+              </div>
               <span class="oc-tag" :class="tagClass(o.category)">{{ categoryLabel(o.category) }}</span>
               <div class="oc-title">{{ o.title }}</div>
               <div class="oc-preview">{{ stripHtml(o.content) }}</div>
@@ -359,6 +370,46 @@ watch(() => route.params.id, (id) => {
 .nf-title { font-family: var(--font-display); font-size: 24px; font-weight: 800; color: var(--text-bright); text-transform: uppercase; margin-top: -20px; }
 .nf-sub   { font-size: 14px; color: var(--text-muted); margin-top: 8px; }
 
+.post-cover-wrap {
+  margin-bottom: 24px;
+}
+.post-cover-label {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,184,208,0.2);
+  background: rgba(0,184,208,0.07);
+  color: var(--cyan);
+  font-size: 10px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.post-cover-image {
+  display: block;
+  width: 100%;
+  height: 320px;
+  object-fit: cover;
+  object-position: center center;
+  border-radius: 10px;
+  border: 1px solid var(--border2);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.24);
+}
+
+.oc-media {
+  margin: -18px -18px 14px;
+}
+.oc-image {
+  display: block;
+  width: 100%;
+  height: 132px;
+  object-fit: cover;
+  border-bottom: 1px solid var(--border);
+}
+
 /* ── Breadcrumb ── */
 .breadcrumb { padding: 20px 0 0; }
 .bc-inner   { display: flex; align-items: center; gap: 8px; font-size: 12px; font-family: var(--font-body); color: var(--text-muted); }
@@ -473,6 +524,24 @@ watch(() => route.params.id, (id) => {
   background: rgba(0,184,208,0.05); border-radius: 0 7px 7px 0;
   margin: 20px 0; font-style: italic; color: rgba(255,255,255,0.5);
 }
+.post-body :deep(img):not([class*="inline-image--"]) {
+  width: min(640px, 100%);
+}
+.post-body :deep(img) {
+  display: block;
+  max-width: min(100%, 720px);
+  margin: 22px auto;
+  border-radius: 10px;
+  border: 1px solid var(--border2);
+  box-shadow: 0 14px 32px rgba(0,0,0,0.22);
+}
+.post-body :deep(img.inline-image--small) { width: min(220px, 100%); }
+.post-body :deep(img.inline-image--medium) { width: min(360px, 100%); }
+.post-body :deep(img.inline-image--wide) { width: min(640px, 100%); }
+.post-body :deep(img.inline-image--full) { width: 100%; max-width: 100%; }
+.post-body :deep(img.inline-image--align-left) { margin-left: 0; margin-right: auto; }
+.post-body :deep(img.inline-image--align-center) { margin-left: auto; margin-right: auto; }
+.post-body :deep(img.inline-image--align-right) { margin-left: auto; margin-right: 0; }
 
 /* Callouts — rendered via v-html, requires :deep() */
 :deep(.post-callout) {

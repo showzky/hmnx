@@ -1,5 +1,27 @@
 <template>
   <section class="bedriftsmelding-admin">
+
+    <!-- Floating image resize toolbar -->
+    <div v-if="imageToolbarVisible" class="img-float-toolbar" :style="imageToolbarStyle">
+      <button
+        v-for="option in inlineImageSizeOptions"
+        :key="option.value"
+        type="button"
+        class="ift-btn"
+        :class="{ active: selectedEditorImageSize === option.value }"
+        @mousedown.prevent="applyEditorImageSize(option.value)"
+      >{{ option.label }}</button>
+      <div class="ift-sep"></div>
+      <button
+        v-for="align in inlineImageAlignOptions"
+        :key="align.value"
+        type="button"
+        class="ift-btn ift-align-btn"
+        :class="{ active: selectedEditorImageAlign === align.value }"
+        @mousedown.prevent="applyEditorImageAlign(align.value)"
+        :title="align.title"
+      >{{ align.icon }}</button>
+    </div>
     <!-- Header -->
     <div class="sec-head mb24">
       <div>
@@ -21,6 +43,20 @@
             </div>
           </div>
           <div class="panel-body">
+            <input
+              ref="coverImageInput"
+              class="file-input-hidden"
+              type="file"
+              accept="image/*"
+              @change="handleCoverImageSelected"
+            />
+            <input
+              ref="inlineImageInput"
+              class="file-input-hidden"
+              type="file"
+              accept="image/*"
+              @change="handleInlineImageSelected"
+            />
 
             <!-- TITLE -->
             <div class="form-group">
@@ -46,9 +82,62 @@
                 v-model:content="form.content"
                 content-type="html"
                 :toolbar="toolbarOptions"
+                @ready="onEditorReady"
                 style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;color:var(--text);"
               />
             </div>
+
+            <div class="form-group">
+              <div class="form-label-row">
+                <label class="form-label">Forsidebilde</label>
+              </div>
+
+              <div class="cover-image-card" :class="{ uploading: uploadingCoverImage, empty: !form.image_url }">
+                <template v-if="form.image_url">
+                  <!-- Crop preview -->
+                  <div
+                    class="crop-preview-wrap"
+                    @mousedown="startCropDrag"
+                    title="Dra opp/ned for å justere utsnitt"
+                  >
+                    <img
+                      :src="form.image_url"
+                      :alt="form.image_alt || form.title || 'Bedriftsmelding bilde'"
+                      class="crop-preview-img"
+                      :style="{ objectPosition: form.image_position || 'center center' }"
+                      draggable="false"
+                    />
+                    <div class="crop-preview-hint">↕ Dra for å justere utsnitt</div>
+                  </div>
+                  <div class="cover-image-meta">
+                    <label class="form-label">Alt-tekst</label>
+                    <input
+                      class="form-input"
+                      v-model="form.image_alt"
+                      placeholder="Kort beskrivelse av bildet (valgfritt)"
+                    />
+                    <div class="cover-image-actions">
+                      <button type="button" class="btn btn-cyan btn-sm" @click="triggerCoverImageUpload" :disabled="uploadingCoverImage">
+                        {{ uploadingCoverImage ? 'Laster opp...' : 'Bytt bilde' }}
+                      </button>
+                      <button type="button" class="btn btn-ghost btn-sm" @click="removeCoverImage">Fjern bilde</button>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="cover-image-empty">
+                    <div class="cover-image-empty-title">Ingen forsidebilde valgt</div>
+                    <div class="cover-image-empty-sub">
+                      Bruk ett frivillig forsidebilde for kort, detaljside og forsiden. Bilder inne i teksten styres separat fra editoren.
+                    </div>
+                    <button type="button" class="btn btn-ghost btn-sm" @click="triggerCoverImageUpload" :disabled="uploadingCoverImage">
+                      {{ uploadingCoverImage ? 'Laster opp...' : 'Velg bilde' }}
+                    </button>
+                  </div>
+                </template>
+              </div>
+            </div>
+
 
             <!-- KATEGORI + REF -->
             <div class="form-grid" style="margin-bottom:14px;">
@@ -169,6 +258,12 @@
               <div class="mc-body">
                 <div class="mc-title">{{ m.title }}</div>
                 <div class="mc-preview" v-html="stripHtml(m.content)"></div>
+                <img
+                  v-if="m.image_url"
+                  :src="m.image_url"
+                  :alt="m.image_alt || m.title"
+                  class="mc-image"
+                />
               </div>
               <div class="mc-foot">
                 <button class="btn btn-cyan btn-sm" @click="editMelding(m)">Rediger</button>
@@ -211,6 +306,20 @@ import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 
+const createEmptyForm = () => ({
+  id: null,
+  ref: null,
+  title: '',
+  content: '',
+  image_url: '',
+  image_alt: '',
+  image_position: 'center center',
+  category: 'oppdatering',
+  tag: null,
+  pinned: false,
+  notify_users: false,
+});
+
 export default {
   components: { QuillEditor },
 
@@ -218,15 +327,36 @@ export default {
     return {
       meldinger: [],
       editing: false,
-      form: { id: null, ref: null, title: '', content: '', category: 'oppdatering', tag: null, pinned: false, notify_users: false },
+      form: createEmptyForm(),
       statusMsg: '',
       statusOk: true,
+      editorInstance: null,
+      hasBoundImageHandler: false,
+      uploadingCoverImage: false,
+      uploadingInlineImage: false,
+      selectedEditorImage: null,
+      selectedEditorImageSize: 'wide',
+      selectedEditorImageAlign: 'center',
+      imageToolbarVisible: false,
+      imageToolbarStyle: {},
       activeFilter: 'alle',
+      _cropDrag: null,
+      inlineImageSizeOptions: [
+        { value: 'small', label: 'Liten' },
+        { value: 'medium', label: 'Medium' },
+        { value: 'wide', label: 'Bred' },
+        { value: 'full', label: 'Full bredde' },
+      ],
+      inlineImageAlignOptions: [
+        { value: 'left',   icon: '←', title: 'Venstrestill' },
+        { value: 'center', icon: '⊟', title: 'Midtstill' },
+        { value: 'right',  icon: '→', title: 'Høyrestill' },
+      ],
       toolbarOptions: [
         ['bold', 'italic', 'underline'],
         [{ header: [1, 2, false] }],
         [{ list: 'ordered' }, { list: 'bullet' }],
-        ['link'],
+        ['link', 'image'],
         ['clean'],
       ],
       tags: [
@@ -258,9 +388,108 @@ export default {
   },
 
   methods: {
+    emptyForm() {
+      return createEmptyForm();
+    },
+
     authHeader() {
       const auth = useAuthStore();
       return { Authorization: `Bearer ${auth.token}` };
+    },
+
+    onEditorReady(quill) {
+      const editor = quill || this.$refs.quillEditor?.getQuill?.();
+      if (!editor) return;
+
+      this.editorInstance = editor;
+      if (this.hasBoundImageHandler) return;
+
+      const toolbar = editor.getModule('toolbar');
+      toolbar?.addHandler('image', () => this.triggerInlineImageUpload());
+      editor.root.addEventListener('click', this.handleEditorRootClick);
+      this.hasBoundImageHandler = true;
+    },
+
+    inlineImageSizeLabel(size) {
+      return this.inlineImageSizeOptions.find((option) => option.value === size)?.label || 'Bred';
+    },
+
+    handleEditorRootClick(event) {
+      const target = event.target;
+      if (target instanceof HTMLImageElement) {
+        this.selectedEditorImage = target;
+        this.selectedEditorImageSize = this.detectInlineImageSize(target);
+        this.selectedEditorImageAlign = this.detectInlineImageAlign(target);
+        const rect = target.getBoundingClientRect();
+        this.imageToolbarStyle = {
+          position: 'fixed',
+          top: Math.max(8, rect.top - 44) + 'px',
+          left: (rect.left + rect.width / 2) + 'px',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+        };
+        this.imageToolbarVisible = true;
+        return;
+      }
+      this.selectedEditorImage = null;
+      this.imageToolbarVisible = false;
+      this.selectedEditorImageSize = 'wide';
+      this.selectedEditorImageAlign = 'center';
+    },
+
+    detectInlineImageSize(imageEl) {
+      if (!(imageEl instanceof HTMLImageElement)) return 'wide';
+      if (imageEl.classList.contains('inline-image--small')) return 'small';
+      if (imageEl.classList.contains('inline-image--medium')) return 'medium';
+      if (imageEl.classList.contains('inline-image--full')) return 'full';
+      return 'wide';
+    },
+
+    setInlineImageSize(imageEl, size) {
+      if (!(imageEl instanceof HTMLImageElement)) return;
+      imageEl.classList.add('editor-inline-image');
+      imageEl.classList.remove(
+        'inline-image--small',
+        'inline-image--medium',
+        'inline-image--wide',
+        'inline-image--full'
+      );
+      imageEl.classList.add(`inline-image--${size}`);
+      imageEl.setAttribute('data-size', size);
+      imageEl.removeAttribute('width');
+      imageEl.removeAttribute('height');
+      imageEl.style.width = '';
+      imageEl.style.maxWidth = '';
+    },
+
+    applyEditorImageSize(size) {
+      if (!this.selectedEditorImage) {
+        this.showStatus('Klikk på et bilde i editoren først.', false);
+        return;
+      }
+      this.setInlineImageSize(this.selectedEditorImage, size);
+      this.selectedEditorImageSize = size;
+      this.form.content = this.editorInstance?.root?.innerHTML || this.form.content;
+    },
+
+    detectInlineImageAlign(imageEl) {
+      if (!(imageEl instanceof HTMLImageElement)) return 'center';
+      if (imageEl.classList.contains('inline-image--align-left')) return 'left';
+      if (imageEl.classList.contains('inline-image--align-right')) return 'right';
+      return 'center';
+    },
+
+    setInlineImageAlign(imageEl, align) {
+      if (!(imageEl instanceof HTMLImageElement)) return;
+      imageEl.classList.remove('inline-image--align-left', 'inline-image--align-center', 'inline-image--align-right');
+      imageEl.classList.add(`inline-image--align-${align}`);
+    },
+
+    applyEditorImageAlign(align) {
+      if (!this.selectedEditorImage) return;
+      this.setInlineImageAlign(this.selectedEditorImage, align);
+      this.selectedEditorImageAlign = align;
+      this.form.content = this.editorInstance?.root?.innerHTML || this.form.content;
     },
 
     insertCallout() {
@@ -283,6 +512,125 @@ export default {
       } else {
         const idx = range ? range.index : quill.getLength();
         quill.clipboard.dangerouslyPasteHTML(idx, html);
+      }
+    },
+
+    async uploadBedriftsmeldingImage(file, kind = 'content') {
+      if (!file?.type?.startsWith('image/')) {
+        throw new Error('Bare bildefiler er tillatt.');
+      }
+
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('kind', kind);
+
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/bedriftsmeldinger/upload-image`,
+        formData,
+        { headers: { ...this.authHeader(), 'Content-Type': 'multipart/form-data' } }
+      );
+
+      return res.data?.url;
+    },
+
+    triggerCoverImageUpload() {
+      if (this.uploadingCoverImage) return;
+      this.$refs.coverImageInput?.click();
+    },
+
+    async handleCoverImageSelected(event) {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if (!file) return;
+
+      this.uploadingCoverImage = true;
+      try {
+        const imageUrl = await this.uploadBedriftsmeldingImage(file, 'cover');
+        this.form.image_url = imageUrl || '';
+        if (!this.form.image_alt) {
+          this.form.image_alt = this.form.title ? `Illustrasjon til ${this.form.title}` : '';
+        }
+        this.showStatus('Forsidebildet ble lastet opp.', true);
+      } catch (err) {
+        this.showStatus(err?.response?.data?.message || err.message || 'Kunne ikke laste opp bildet.', false);
+      } finally {
+        this.uploadingCoverImage = false;
+      }
+    },
+
+    removeCoverImage() {
+      this.form.image_url = '';
+      this.form.image_alt = '';
+      this.form.image_position = 'center center';
+    },
+
+    startCropDrag(e) {
+      const startY = e.clientY;
+      // Parse current Y position (0–100)
+      const current = this.form.image_position || 'center center';
+      const parts = current.split(' ');
+      const startPct = parseFloat(parts[1]) || 50;
+
+      const onMove = (ev) => {
+        const wrap = e.currentTarget || e.target.closest('.crop-preview-wrap');
+        const wrapH = wrap ? wrap.offsetHeight : 200;
+        const delta = ev.clientY - startY;
+        // Moving down → image shifts down → object-position Y increases
+        const newPct = Math.min(100, Math.max(0, startPct + (delta / wrapH) * 100));
+        this.form.image_position = `center ${Math.round(newPct)}%`;
+      };
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+      e.preventDefault();
+    },
+
+    triggerInlineImageUpload() {
+      if (this.uploadingInlineImage) return;
+      this.onEditorReady();
+      if (!this.editorInstance) {
+        this.showStatus('Editoren er ikke klar ennå.', false);
+        return;
+      }
+      this.$refs.inlineImageInput?.click();
+    },
+
+    async handleInlineImageSelected(event) {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if (!file) return;
+
+      this.onEditorReady();
+      if (!this.editorInstance) {
+        this.showStatus('Editoren er ikke klar ennå.', false);
+        return;
+      }
+
+      this.uploadingInlineImage = true;
+      try {
+        const imageUrl = await this.uploadBedriftsmeldingImage(file, 'content');
+        const range = this.editorInstance.getSelection(true);
+        const index = typeof range?.index === 'number' ? range.index : this.editorInstance.getLength();
+        this.editorInstance.insertEmbed(index, 'image', imageUrl, 'user');
+        this.$nextTick(() => {
+          const images = Array.from(this.editorInstance.root.querySelectorAll(`img[src="${imageUrl}"]`));
+          const insertedImage = images[images.length - 1] || null;
+          if (insertedImage) {
+            this.setInlineImageSize(insertedImage, 'wide');
+            this.selectedEditorImage = insertedImage;
+            this.selectedEditorImageSize = 'wide';
+          }
+          this.form.content = this.editorInstance?.root?.innerHTML || this.form.content;
+        });
+        this.editorInstance.setSelection(index + 1, 0);
+        this.showStatus('Bildet ble satt inn i innholdet.', true);
+      } catch (err) {
+        this.showStatus(err?.response?.data?.message || err.message || 'Kunne ikke sette inn bildet.', false);
+      } finally {
+        this.uploadingInlineImage = false;
       }
     },
 
@@ -318,7 +666,13 @@ export default {
     },
 
     editMelding(m) {
-      this.form = { ...m };
+      this.form = {
+        ...this.emptyForm(),
+        ...m,
+        image_url: m.image_url || '',
+        image_alt: m.image_alt || '',
+        image_position: m.image_position || 'center center',
+      };
       this.editing = true;
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
@@ -351,8 +705,11 @@ export default {
     },
 
     resetForm() {
-      this.form = { id: null, ref: null, title: '', content: '', category: 'oppdatering', tag: null, pinned: false, notify_users: false };
+      this.form = this.emptyForm();
       this.editing = false;
+      this.selectedEditorImage = null;
+      this.selectedEditorImageSize = 'wide';
+      this.selectedEditorImageAlign = 'center';
     },
 
     showStatus(msg, ok) {
@@ -400,11 +757,20 @@ export default {
 
   mounted() {
     this.fetchMeldinger();
+    this.$nextTick(() => this.onEditorReady());
+  },
+
+  beforeUnmount() {
+    this.editorInstance?.root?.removeEventListener?.('click', this.handleEditorRootClick);
   },
 };
 </script>
 
 <style scoped>
+.file-input-hidden {
+  display: none;
+}
+
 /* Label row with callout buttons */
 .form-label-row {
   display: flex;
@@ -519,6 +885,129 @@ export default {
 .toggle-thumb.thumb-gold { left: 21px; background: var(--gold); box-shadow: 0 0 6px rgba(216,152,32,0.5); }
 .toggle-thumb.thumb-cyan { left: 21px; background: var(--cyan); box-shadow: 0 0 6px rgba(0,184,208,0.5); }
 
+/* Cover image */
+.cover-image-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+.cover-image-card.uploading {
+  border-color: rgba(0,184,208,0.3);
+}
+.cover-image-card.empty {
+  display: block;
+}
+.crop-preview-wrap {
+  width: 200px;
+  height: 128px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border2);
+  background: rgba(255,255,255,0.03);
+  overflow: hidden;
+  position: relative;
+  cursor: ns-resize;
+  user-select: none;
+}
+.crop-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+.crop-preview-hint {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0,0,0,0.55);
+  color: rgba(255,255,255,0.7);
+  font-size: 10px;
+  text-align: center;
+  padding: 3px 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.crop-preview-wrap:hover .crop-preview-hint {
+  opacity: 1;
+}
+.cover-image-meta {
+  flex: 1;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.cover-image-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cover-image-empty {
+  display: grid;
+  gap: 10px;
+}
+.cover-image-empty-title {
+  color: var(--bright);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.cover-image-empty-sub {
+  color: var(--text-muted);
+  font-family: 'Barlow', sans-serif;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.inline-image-state {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: 'Barlow', sans-serif;
+}
+.inline-image-state.active {
+  color: var(--cyan);
+}
+.inline-image-size-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.size-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border2);
+  background: rgba(255,255,255,0.03);
+  color: var(--muted);
+  font-size: 11px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.size-chip:hover:not(:disabled) {
+  color: var(--text);
+  border-color: rgba(0,184,208,0.25);
+}
+.size-chip.active {
+  color: var(--cyan);
+  background: rgba(0,184,208,0.08);
+  border-color: rgba(0,184,208,0.28);
+}
+.size-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* Feed filters */
 .feed-filters { display: flex; gap: 6px; flex-wrap: wrap; }
 .ff {
@@ -549,6 +1038,14 @@ export default {
 .mc-body { padding: 10px 14px; }
 .mc-title { font-size: 14px; font-weight: 600; color: var(--bright); font-family: 'Barlow', sans-serif; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mc-preview { font-size: 12px; color: rgba(255,255,255,0.35); font-family: 'Barlow', sans-serif; line-height: 1.55; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-image {
+  width: 100%;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-top: 10px;
+}
 .mc-foot {
   padding: 8px 14px; border-top: 1px solid var(--border);
   background: rgba(0,0,0,0.15); display: flex; align-items: center; gap: 6px;
@@ -573,4 +1070,56 @@ export default {
 :deep(.ql-toolbar .ql-picker) { color: var(--muted); }
 :deep(.ql-container) { border-color: var(--border2); font-family: inherit; font-size: 14px; border-radius: 0 0 6px 6px; }
 :deep(.ql-editor) { min-height: 140px; color: var(--text); background: var(--s2); }
+:deep(.ql-editor img) { max-width: 100%; border-radius: 8px; }
+.img-float-toolbar {
+  display: flex;
+  gap: 4px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 5px 7px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  pointer-events: all;
+}
+.img-float-toolbar::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--border2);
+}
+.ift-btn {
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.ift-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.ift-btn.active { background: rgba(0,184,208,0.12); color: var(--cyan); border-color: rgba(0,184,208,0.25); }
+.ift-align-btn { font-size: 13px; padding: 4px 8px; }
+.ift-sep { width: 1px; background: var(--border2); margin: 2px 3px; }
+
+:deep(.ql-editor img.editor-inline-image) {
+  display: block;
+  margin: 18px auto;
+  border: 1px solid var(--border2);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.2);
+}
+:deep(.ql-editor img.inline-image--small) { width: min(220px, 100%); }
+:deep(.ql-editor img.inline-image--medium) { width: min(360px, 100%); }
+:deep(.ql-editor img.inline-image--wide) { width: min(640px, 100%); }
+:deep(.ql-editor img.inline-image--full) { width: 100%; }
+:deep(.ql-editor img.inline-image--align-left) { margin-left: 0; margin-right: auto; }
+:deep(.ql-editor img.inline-image--align-center) { margin-left: auto; margin-right: auto; }
+:deep(.ql-editor img.inline-image--align-right) { margin-left: auto; margin-right: 0; }
 </style>

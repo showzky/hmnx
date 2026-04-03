@@ -116,6 +116,8 @@ const FALLBACK_FEATURED_MELDING = {
   date: '2026-03-22T09:00:00.000Z',
   title: 'Ingen aktiv melding.\nPasienten er stabil.',
   body: 'Ingen alarmer, ingen kriser og ingen tegn på Thomas-relatert aktivitet. Dette er enten veldig bra eller veldig mistenkelig. § 4.2 anbefaler å ikke tenke for mye på det.',
+  image_url: '',
+  image_alt: '',
   ctaLabel: 'Utforsk portalen',
   ctaRoute: '/about',
   secondaryLabel: 'Se alle meldinger',
@@ -161,7 +163,14 @@ const FALLBACK_MELDINGER = [
 ];
 const displayMeldinger = computed(() =>
   rawMeldinger.value.length
-    ? rawMeldinger.value.map(m => ({ title: m.title, meta: m.meta || m.date || '', desc: m.body || m.desc || '' }))
+    ? rawMeldinger.value.map(m => ({
+        id: m.id,
+        title: m.title,
+        meta: m.meta || m.date || '',
+        desc: m.body || m.desc || '',
+        image_url: m.image_url || '',
+        image_alt: m.image_alt || '',
+      }))
     : CURATED_FALLBACK_MELDINGER
 );
 
@@ -247,6 +256,8 @@ async function fetchMeldinger() {
         date:  pinned.created_at,
         title: pinned.title,
         body:  stripHtml(pinned.content),
+        image_url: pinned.image_url || '',
+        image_alt: pinned.image_alt || '',
       };
       rawMeldinger.value = items
         .filter(m => m.id !== pinned.id)
@@ -256,6 +267,8 @@ async function fetchMeldinger() {
           title: m.title,
           meta:  [formatDate(m.created_at), m.ref].filter(Boolean).join(' · '),
           desc:  stripHtml(m.content),
+          image_url: m.image_url || '',
+          image_alt: m.image_alt || '',
         }));
     } else {
       featuredMelding.value = FALLBACK_FEATURED_MELDING;

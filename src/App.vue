@@ -29,7 +29,7 @@ function switchToLogin() {
 }
 
 const route = useRoute()
-const hideLayoutRoutes = ['/tos']
+const hideLayoutRoutes = ['/tos', '/management']
 const showLayout = computed(() => !hideLayoutRoutes.includes(route.path))
 const isAuthPage = computed(() => ['/login', '/register'].includes(route.path))
 </script>

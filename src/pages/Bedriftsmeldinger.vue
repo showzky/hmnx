@@ -60,6 +60,9 @@
             <span class="fc-ref">{{ pinnedMelding.ref }}</span>
             <span class="fc-date">{{ formatDate(pinnedMelding.created_at) }}</span>
           </div>
+          <div v-if="pinnedMelding.image_url" class="fc-media">
+            <img :src="pinnedMelding.image_url" :alt="pinnedMelding.image_alt || pinnedMelding.title" class="fc-image" />
+          </div>
           <div class="fc-title">{{ pinnedMelding.title }}</div>
           <div class="fc-preview">{{ stripHtml(pinnedMelding.content) }}</div>
           <div class="fc-cta">Les melding →</div>
@@ -73,6 +76,9 @@
             :to="`/bedriftsmeldinger/${m.id}`"
             class="bm-card"
           >
+            <div v-if="m.image_url" class="bmc-media">
+              <img :src="m.image_url" :alt="m.image_alt || m.title" class="bmc-image" />
+            </div>
             <div class="bmc-top">
               <span class="post-tag" :class="tagClass(m.category)">{{ categoryLabel(m.category) }}</span>
               <span v-if="m.pinned" class="pin-icon">📌</span>
@@ -284,10 +290,25 @@ onMounted(fetchMeldinger);
   font-weight: 900; color: var(--text-bright); text-transform: uppercase;
   line-height: 1; margin-bottom: 10px;
 }
+.fc-media {
+  margin-bottom: 18px;
+}
+.fc-image {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+}
 .fc-preview {
   font-size: 13px; color: rgba(255,255,255,0.35); font-family: var(--font-body);
   line-height: 1.7; margin-bottom: 16px;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .fc-cta { font-size: 12px; color: var(--cyan); font-family: var(--font-display); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 
@@ -303,13 +324,27 @@ onMounted(fetchMeldinger);
   transition: all 0.2s; text-decoration: none; display: block;
 }
 .bm-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,0.3); }
+.bmc-media {
+  margin: -18px -18px 14px;
+}
+.bmc-image {
+  display: block;
+  width: 100%;
+  height: 168px;
+  object-fit: cover;
+  border-bottom: 1px solid var(--border);
+}
 .bmc-top { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .pin-icon { font-size: 11px; margin-left: auto; }
 .bmc-title { font-size: 15px; font-weight: 600; color: var(--text-bright); font-family: var(--font-body); margin-bottom: 8px; line-height: 1.4; }
 .bmc-preview {
   font-size: 12px; color: rgba(255,255,255,0.3); font-family: var(--font-body);
   line-height: 1.55; margin-bottom: 12px;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  display: -webkit-box;
+  line-clamp: 3;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .bmc-meta { font-size: 10px; color: var(--text-muted); font-family: var(--font-display); letter-spacing: 0.06em; }
 

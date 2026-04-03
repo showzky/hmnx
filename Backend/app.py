@@ -2092,6 +2092,9 @@ class Bedriftsmelding(db.Model):
     ref = db.Column(db.String(20), unique=True, nullable=False)
     title = db.Column(db.String(255), nullable=False)
     content = db.Column(db.Text, nullable=False)
+    image_url = db.Column(db.String(500), nullable=True)
+    image_alt = db.Column(db.String(255), nullable=True)
+    image_position = db.Column(db.String(100), nullable=True, default='center center')
     category = db.Column(db.String(50), nullable=False, default='oppdatering')
     tag = db.Column(db.String(50), nullable=True)
     pinned = db.Column(db.Boolean, default=False, nullable=False)
@@ -6376,6 +6379,40 @@ def get_any_user_achievements(user_id):
 # BEDRIFTSMELDINGER ROUTES
 # -----------------------------------------------
 
+BEDRIFTSMELDING_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif'}
+
+
+def _normalize_optional_text(value, max_length=None):
+    if value is None:
+        return None
+
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+
+    if max_length is not None:
+        normalized = normalized[:max_length]
+
+    return normalized
+
+
+def _validate_bedriftsmelding_image_upload(file):
+    if not file:
+        return 'No file provided'
+
+    if not file.filename:
+        return 'No selected file'
+
+    if not file.content_type or not file.content_type.startswith('image/'):
+        return 'Invalid file type, only images are allowed'
+
+    filename = secure_filename(file.filename)
+    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+    if ext not in BEDRIFTSMELDING_IMAGE_EXTENSIONS:
+        return 'Unsupported image format'
+
+    return None
+
 def _melding_dict(m):
     author = None
     if m.user:
@@ -6390,6 +6427,9 @@ def _melding_dict(m):
         'ref': m.ref,
         'title': m.title,
         'content': m.content,
+        'image_url': m.image_url,
+        'image_alt': m.image_alt,
+        'image_position': m.image_position or 'center center',
         'category': m.category,
         'tag': m.tag,
         'pinned': m.pinned,
@@ -6397,6 +6437,37 @@ def _melding_dict(m):
         'created_at': m.created_at.isoformat() + 'Z',
         'author': author,
     }
+
+
+@app.route('/api/bedriftsmeldinger/upload-image', methods=['POST'])
+@jwt_required()
+def upload_bedriftsmelding_image():
+    current_user_id = int(get_jwt_identity())
+    user = User.query.get(current_user_id)
+    if not can_manage_bedriftsmeldinger(user):
+        return jsonify({'message': 'Unauthorized'}), 403
+
+    file = request.files.get('image')
+    validation_error = _validate_bedriftsmelding_image_upload(file)
+    if validation_error:
+        return jsonify({'message': validation_error}), 400
+
+    kind = request.form.get('kind', 'content')
+    kind = 'cover' if kind == 'cover' else 'content'
+    filename_root = secure_filename(os.path.splitext(file.filename)[0]) or 'bedriftsmelding-image'
+    public_id = f"{kind}_{filename_root}_{secrets.token_hex(4)}"
+
+    try:
+        result = cloudinary.uploader.upload(
+            file,
+            folder=f"bedriftsmeldinger/user_{current_user_id}/{kind}",
+            public_id=public_id,
+            overwrite=False,
+        )
+        return jsonify({'url': result['secure_url']}), 200
+    except Exception as e:
+        print(f"Error uploading Bedriftsmelding image: {e}")
+        return jsonify({'message': 'Image upload failed'}), 500
 
 
 @app.route('/api/bedriftsmeldinger', methods=['GET'])
@@ -6427,7 +6498,10 @@ def create_bedriftsmelding():
     if not can_manage_bedriftsmeldinger(user):
         return jsonify({'message': 'Unauthorized'}), 403
 
-    data = request.get_json()
+    data = request.get_json() or {}
+    image_url = _normalize_optional_text(data.get('image_url'), 500)
+    image_alt = _normalize_optional_text(data.get('image_alt'), 255) if image_url else None
+    image_position = _normalize_optional_text(data.get('image_position'), 100) or 'center center'
 
     # Auto-generate ref
     count = Bedriftsmelding.query.count()
@@ -6445,6 +6519,9 @@ def create_bedriftsmelding():
         ref=ref,
         title=data['title'],
         content=data['content'],
+        image_url=image_url,
+        image_alt=image_alt,
+        image_position=image_position,
         category=data.get('category', 'oppdatering'),
         tag=data.get('tag'),
         pinned=data.get('pinned', False),
@@ -6465,7 +6542,7 @@ def update_bedriftsmelding(melding_id):
         return jsonify({'message': 'Unauthorized'}), 403
 
     m = Bedriftsmelding.query.get_or_404(melding_id)
-    data = request.get_json()
+    data = request.get_json() or {}
 
     # If pinning this one, unpin all others first
     if data.get('pinned') and not m.pinned:
@@ -6477,6 +6554,15 @@ def update_bedriftsmelding(melding_id):
     m.tag = data.get('tag', m.tag)
     m.pinned = data.get('pinned', m.pinned)
     m.notify_users = data.get('notify_users', m.notify_users)
+    if 'image_url' in data:
+        m.image_url = _normalize_optional_text(data.get('image_url'), 500)
+    if 'image_alt' in data:
+        m.image_alt = _normalize_optional_text(data.get('image_alt'), 255)
+    if 'image_position' in data:
+        m.image_position = _normalize_optional_text(data.get('image_position'), 100) or 'center center'
+    if not m.image_url:
+        m.image_alt = None
+        m.image_position = 'center center'
 
     db.session.commit()
     return jsonify(_melding_dict(m))
