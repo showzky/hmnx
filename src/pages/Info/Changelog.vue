@@ -1,69 +1,83 @@
 <template>
-  <div class="changelog-page" id="changelog">
-    <h1 class="page-title">Changelog 📝</h1>
-    <div v-if="changelogs.length > 0">
-      <div
-        v-for="changelog in changelogs"
-        :key="changelog.id"
-        class="changelog-entry"
-      >
-        <div
-          class="entry-header"
-          :class="{ expanded: expandedIds.includes(changelog.id) }"
-          @click="toggleEntry(changelog.id)"
-        >
-          <span class="version-badge">{{ changelog.version }}</span>
-          <span class="date">({{ changelog.date }})</span>
-          <span class="toggle-icon">
-            <svg
-              :class="{ rotated: expandedIds.includes(changelog.id) }"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </span>
-          
-        </div>
+  <div class="cl-page">
+    <div class="hmn-container">
 
-        <transition name="fade">
-          <div v-if="expandedIds.includes(changelog.id)" class="entry-content">
-            <div class="change-block" v-if="changelog.added && changelog.added.length > 0">
-              <h3><span class="icon">➕</span> Added</h3>
-              <ul>
-                <li v-for="item in changelog.added" :key="item">{{ item }}</li>
-              </ul>
-            </div>
-            <div class="change-block" v-if="changelog.changed && changelog.changed.length > 0">
-              <h3><span class="icon">♻️</span> Changed</h3>
-              <ul>
-                <li v-for="item in changelog.changed" :key="item">{{ item }}</li>
-              </ul>
-            </div>
-            <div class="change-block" v-if="changelog.fixed && changelog.fixed.length > 0">
-              <h3><span class="icon">🛠️</span> Fixed</h3>
-              <ul>
-                <li v-for="item in changelog.fixed" :key="item">{{ item }}</li>
-              </ul>
-            </div>
-            <div class="change-block" v-if="changelog.removed && changelog.removed.length > 0">
-              <h3><span class="icon">➖</span> Removed</h3>
-              <ul>
-                <li v-for="item in changelog.removed" :key="item">{{ item }}</li>
-              </ul>
-            </div>
-          </div>
-        </transition>
+      <!-- Hero -->
+      <div class="cl-hero">
+        <div class="cl-hero-label">VERSIONSLOGG</div>
+        <h1 class="cl-hero-title">Change<em>log</em></h1>
+        <p class="cl-hero-sub">Oversikt over alle oppdateringer, endringer og fikser til HMN-plattformen.</p>
       </div>
-    </div>
-    <div v-else>
-      <p>No changelog entries found.</p>
+
+      <!-- Empty -->
+      <div v-if="changelogs.length === 0" class="cl-empty">
+        <div class="cl-empty-title">Ingen versjoner funnet</div>
+        <div class="cl-empty-sub">Kom tilbake senere.</div>
+      </div>
+
+      <!-- Entries -->
+      <div v-else class="cl-list">
+        <div
+          v-for="entry in changelogs"
+          :key="entry.id"
+          class="cl-entry"
+          :class="{ open: expandedIds.includes(entry.id) }"
+        >
+          <!-- Header row -->
+          <div class="cl-entry-head" @click="toggleEntry(entry.id)">
+            <span class="cl-version">v{{ entry.version }}</span>
+            <span class="cl-date">{{ formatDate(entry.date) }}</span>
+            <div class="cl-tags">
+              <span v-if="entry.added?.length"   class="cl-tag cl-tag-added">+{{ entry.added.length }} lagt til</span>
+              <span v-if="entry.changed?.length" class="cl-tag cl-tag-changed">~ {{ entry.changed.length }} endret</span>
+              <span v-if="entry.fixed?.length"   class="cl-tag cl-tag-fixed">✓ {{ entry.fixed.length }} fikset</span>
+              <span v-if="entry.removed?.length" class="cl-tag cl-tag-removed">− {{ entry.removed.length }} fjernet</span>
+            </div>
+            <svg class="cl-chevron" :class="{ rotated: expandedIds.includes(entry.id) }" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+
+          <!-- Body -->
+          <transition name="cl-expand">
+            <div v-if="expandedIds.includes(entry.id)" class="cl-entry-body">
+              <div v-if="entry.added?.length" class="cl-block cl-block-added">
+                <div class="cl-block-label">
+                  <span class="cl-block-icon">+</span> Lagt til
+                </div>
+                <ul class="cl-items">
+                  <li v-for="item in entry.added" :key="item">{{ item }}</li>
+                </ul>
+              </div>
+              <div v-if="entry.changed?.length" class="cl-block cl-block-changed">
+                <div class="cl-block-label">
+                  <span class="cl-block-icon">~</span> Endret
+                </div>
+                <ul class="cl-items">
+                  <li v-for="item in entry.changed" :key="item">{{ item }}</li>
+                </ul>
+              </div>
+              <div v-if="entry.fixed?.length" class="cl-block cl-block-fixed">
+                <div class="cl-block-label">
+                  <span class="cl-block-icon">✓</span> Fikset
+                </div>
+                <ul class="cl-items">
+                  <li v-for="item in entry.fixed" :key="item">{{ item }}</li>
+                </ul>
+              </div>
+              <div v-if="entry.removed?.length" class="cl-block cl-block-removed">
+                <div class="cl-block-label">
+                  <span class="cl-block-icon">−</span> Fjernet
+                </div>
+                <ul class="cl-items">
+                  <li v-for="item in entry.removed" :key="item">{{ item }}</li>
+                </ul>
+              </div>
+            </div>
+          </transition>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -76,251 +90,253 @@ export default {
   data() {
     return {
       changelogs: [],
-      expandedIds: []
+      expandedIds: [],
     };
   },
   async mounted() {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/changelog`);
-      console.log('API Response:', response.data);
-      this.changelogs = response.data;
-    } catch (error) {
-      console.error('Failed to fetch changelog', error);
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/changelog`);
+      this.changelogs = res.data;
+    } catch (e) {
+      console.error('Failed to fetch changelog', e);
     }
   },
   methods: {
     toggleEntry(id) {
       if (this.expandedIds.includes(id)) {
-        this.expandedIds = this.expandedIds.filter(entryId => entryId !== id);
+        this.expandedIds = this.expandedIds.filter(x => x !== id);
       } else {
         this.expandedIds.push(id);
       }
-    }
-  }
+    },
+    formatDate(raw) {
+      if (!raw) return '';
+      const d = new Date(raw);
+      if (isNaN(d)) return raw;
+      return d.toLocaleDateString('nb-NO', { year: 'numeric', month: 'long', day: 'numeric' });
+    },
+  },
 };
 </script>
 
 <style scoped>
-/* Global Color Variables - Updated */
-:root {
-    --bg-color: #f8f9fa; /* Lighter background */
-    --text-color: #343a40; /* Darker grey text */
-    --card-bg: #ffffff; /* White cards */
-    --primary-accent: #e83e8c; /* A slightly bolder pink */
-    --secondary-text: #6c757d; /* Muted grey for dates/less important text */
-    --border-color: #e9ecef; /* Light grey border */
+.cl-page {
+  min-height: 80vh;
+  padding: 60px 0 80px;
 }
 
-.dark-mode {
-    --bg-color: #212529; /* Dark background */
-    --text-color: #dee2e6; /* Light grey text */
-    --card-bg: #343a40; /* Dark grey cards */
-    --primary-accent: #fd7e14; /* An orange accent for dark mode */
-    --secondary-text: #adb5bd; /* Lighter grey in dark mode */
-    --border-color: #495057; /* Darker grey border */
+/* Hero */
+.cl-hero {
+  margin-bottom: 48px;
+}
+.cl-hero-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--cyan);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.cl-hero-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: clamp(36px, 6vw, 56px);
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  line-height: 1;
+  margin: 0 0 12px;
+  letter-spacing: 0.02em;
+}
+.cl-hero-title em {
+  color: var(--cyan);
+  font-style: normal;
+}
+.cl-hero-sub {
+  font-family: 'Barlow', sans-serif;
+  font-size: 14px;
+  color: var(--text-muted);
+  max-width: 480px;
 }
 
-/* Apply base styles to body (consider if this should be global or within the component) */
-body {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    font-family: 'Inter', sans-serif; /* Modern sans-serif font */
-    transition: background 0.3s ease, color 0.3s ease;
-    padding: 20px;
-    line-height: 1.6; /* Improved readability */
+/* Empty */
+.cl-empty {
+  text-align: center;
+  padding: 80px 0;
+}
+.cl-empty-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-bright);
+  margin-bottom: 8px;
+}
+.cl-empty-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: 'Barlow', sans-serif;
 }
 
-.changelog-page {
-  max-width: 800px;
-  margin: 2rem auto;
-  padding: 1rem;
-  background-color: var(--card-bg);
-  border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+/* List */
+.cl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.page-title {
-    text-align: center;
-    font-size: 2.8rem;
-    letter-spacing: 0.5px;
-    margin-bottom: 2rem;
-    position: relative;
-    display: inline-block;
-    padding-bottom: 0.5rem;
-    color: var(--text-color);
-  }
-
- .dark-mode .changelog-entry {
-    background: rgba(52, 58, 64, 0.6);
-  }
-
-  .page-title::after {
-    content: "";
-    display: block;
-    width: 60%;
-    height: 3px;
-    margin: 0.5rem auto 0;
-    background: linear-gradient(90deg, var(--primary-accent), transparent);
-    border-radius: 10px;
-  }
-
-  .changelog-entry {
-    background: rgba(255, 255, 255, 0.6); /* light glass effect */
-    border: 1px solid var(--border-color);
-    border-left: 5px solid var(--primary-accent);
-    border-radius: 12px;
-    margin-bottom: 1.5rem;
-    padding: 1.2rem 1rem;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
-    backdrop-filter: blur(6px);
-  }
-
-  .changelog-entry:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  }
-
-  .entry-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    padding: 0.7rem 0;
-    user-select: none;
-  }
-
-  .version-badge {
-    background: var(--primary-accent);
-    color: rgb(0, 0, 0);
-    padding: 0.35rem 0.9rem;
-    border-radius: 9999px;
-    font-size: 1rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 80px;
-  }
-
-  .date {
-    color: var(--secondary-text);
-    font-size: 0.9rem;
-    margin-left: auto;
-    margin-right: 1rem;
-  }
-
-.toggle-icon {
-  font-size: 1.2rem;
-  color: var(--secondary-text);
-  transition: transform 0.3s ease;
+/* Entry */
+.cl-entry {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.025);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.cl-entry.open {
+  border-color: rgba(0,184,208,0.25);
+  background: rgba(255,255,255,0.035);
 }
 
-.entry-content {
-    overflow: hidden;
-    transition: all 0.4s ease;
-  }
+.cl-entry-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s;
+}
+.cl-entry-head:hover {
+  background: rgba(255,255,255,0.03);
+}
 
-.toggle-icon svg.rotated {
-    transform: rotate(180deg);
-  }
+.cl-version {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  min-width: 64px;
+}
+.cl-date {
+  font-family: 'Barlow', sans-serif;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.cl-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+.cl-tag {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.cl-tag-added   { background: rgba(34,197,94,0.1);  color: #4ade80; border-color: rgba(34,197,94,0.2); }
+.cl-tag-changed { background: rgba(0,184,208,0.1);  color: var(--cyan); border-color: rgba(0,184,208,0.2); }
+.cl-tag-fixed   { background: rgba(168,85,247,0.1); color: #c084fc; border-color: rgba(168,85,247,0.2); }
+.cl-tag-removed { background: rgba(239,68,68,0.1);  color: #f87171; border-color: rgba(239,68,68,0.2); }
 
-.expanded .toggle-icon {
+.cl-chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.cl-chevron.rotated {
   transform: rotate(180deg);
+  color: var(--cyan);
 }
 
-.change-block {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-color);
+/* Body */
+.cl-entry-body {
+  padding: 0 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
 }
 
-.change-block h3 {
-    font-size: 1.25rem;
-    color: var(--text-color);
-    margin-bottom: 0.5rem;
-    display: flex;
-    align-items: center;
-  }
-
-.change-block h3 .icon {
-  margin-right: 0.5rem;
-  font-size: 1.5rem;
-  color: var(--primary-accent);
+.cl-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cl-block-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cl-block-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 900;
 }
 
-.change-block ul {
-  padding-left: 1.5rem;
-  list-style: disc;
+.cl-block-added   .cl-block-label { color: #4ade80; }
+.cl-block-added   .cl-block-icon  { background: rgba(34,197,94,0.15); color: #4ade80; }
+.cl-block-changed .cl-block-label { color: var(--cyan); }
+.cl-block-changed .cl-block-icon  { background: rgba(0,184,208,0.15); color: var(--cyan); }
+.cl-block-fixed   .cl-block-label { color: #c084fc; }
+.cl-block-fixed   .cl-block-icon  { background: rgba(168,85,247,0.15); color: #c084fc; }
+.cl-block-removed .cl-block-label { color: #f87171; }
+.cl-block-removed .cl-block-icon  { background: rgba(239,68,68,0.15); color: #f87171; }
+
+.cl-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cl-items li {
+  font-family: 'Barlow', sans-serif;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  padding-left: 14px;
+  position: relative;
+}
+.cl-items li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--border2);
 }
 
-.change-block li {
-    margin-bottom: 0.5rem;
-    color: var(--text-color);
-    line-height: 1.5;
-  }
-
-code {
-    background: var(--border-color); /* Use border color for code background */
-    padding: 3px 7px;
-    border-radius: 5px;
-    font-family: 'Fira Code', monospace; /* Monospace font */
-    font-size: 0.9em;
-    color: var(--text-color);
+/* Expand transition */
+.cl-expand-enter-active,
+.cl-expand-leave-active {
+  transition: opacity 0.2s ease;
 }
-
-.dark-mode code {
-    background: rgba(255, 255, 255, 0.15); /* Lighter background in dark mode */
-    color: var(--text-color);
-}
-
-/* Fade Transition */
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-.fade-enter-from, .fade-leave-to {
+.cl-expand-enter-from,
+.cl-expand-leave-to {
   opacity: 0;
 }
-
-/* Responsive tweaks */
-@media (max-width: 768px) {
-    .page-title {
-        font-size: 2rem;
-    }
-
-    .changelog-entry {
-        padding: 1.2rem;
-    }
-
-    .version-badge {
-        padding: 4px 10px;
-        font-size: 0.85rem;
-        margin-right: 10px;
-        min-width: 60px;
-    }
-
-    .date {
-        font-size: 0.9rem;
-    }
-
-    .change-block h3 {
-        font-size: 1.2rem;
-    }
-
-    .change-block h3 .icon {
-         font-size: 1.3rem;
-         margin-right: 8px;
-    }
-
-    .change-block ul {
-        padding-left: 20px;
-    }
-
-    .change-block li {
-        margin-bottom: 0.7rem;
-    }
-}
-
 </style>

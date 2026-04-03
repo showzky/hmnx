@@ -4,6 +4,7 @@
     <div class="hmn-container">
       <div class="footer-inner">
         <span>© 2024 HMN Mental Pasienter AS · org.nr 999 999 999</span>
+        <router-link to="/changelog" class="footer-link">Changelog</router-link>
         <span>GDPR-compliant* · v2.4.1 · § 12.4 alle rettigheter forbeholdt (vi mener det ikke)</span>
       </div>
     </div>
@@ -30,5 +31,15 @@
   font-size:       11px;
   color:           rgba(255,255,255,0.1);
   font-family:     var(--font-ui);
+}
+.footer-link {
+  color: rgba(255,255,255,0.2);
+  text-decoration: none;
+  font-size: 11px;
+  font-family: var(--font-ui);
+  transition: color 0.15s;
+}
+.footer-link:hover {
+  color: rgba(255,255,255,0.5);
 }
 </style>
