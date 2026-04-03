@@ -157,8 +157,8 @@
           <!-- Main -->
           <div class="col">
             <div v-if="gamingLoading" class="mc"><div class="empty-state">Laster gaming-data…</div></div>
-            <template v-else-if="recentGames.length">
-              <div class="mc">
+            <template v-else-if="recentGames.length || allGames.length">
+              <div class="mc" v-if="recentGames.length">
                 <div class="mc-head"><span class="mc-title">Siste spilte</span></div>
                 <div class="game-grid">
                   <div v-for="game in recentGames" :key="game.id + '-r'" class="gc">
